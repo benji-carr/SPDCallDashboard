@@ -1,5 +1,7 @@
 dash
+geopandas
 gunicorn
+numpy
 pandas
 plotly
 pyarrow
