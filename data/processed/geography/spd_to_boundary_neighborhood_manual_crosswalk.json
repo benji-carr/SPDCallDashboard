@@ -1,0 +1,247 @@
+{
+  "capitol hill": "Capitol Hill",
+  "downtown commercial": "Downtown",
+  "northgate": "Northgate",
+  "chinatown/international district": [
+    "International District",
+    "Central Business District",
+    "Pioneer Square",
+    "SODO",
+    "North Beacon Hill",
+    "Atlantic",
+    "Minor"
+  ],
+  "slu/cascade": [
+    "South Lake Union",
+    "Eastlake",
+    "Broadway",
+    "First Hill",
+    "Central Business District",
+    "Belltown",
+    "Denny Triangle",
+    "Lower Queen Anne"
+  ],
+  "queen anne": [
+    "Westlake",
+    "West Queen Anne",
+    "Southeast Magnolia",
+    "Interbay",
+    "North Queen Anne",
+    "East Queen Anne",
+    "South Lake Union",
+    "Lower Queen Anne",
+    "Broadway",
+    "Denny Triangle",
+    "Belltown",
+    "Central Business District"
+  ],
+  "first hill": [
+    "First Hill",
+    "Atlantic",
+    "Minor",
+    "Broadway",
+    "Central Business District",
+    "Pioneer Square",
+    "Yesler Terrace"
+  ],
+  "university": [
+    "University District",
+    "University Heights",
+    "University of Washington"
+  ],
+  "ballard south": [
+    "North Beach/Blue Ridge",
+    "West Woodland",
+    "Sunset Hill",
+    "Loyal Heights",
+    "Whittier Heights",
+    "Ballard",
+    "Phinney Ridge",
+    "Fremont"
+  ],
+  "unknown": "",
+  "roosevelt/ravenna": [
+    "Roosevelt",
+    "Ravenna",
+    "Greenwood",
+    "Licton Springs",
+    "Maple Leaf",
+    "Wedgwood",
+    "Phinney Ridge",
+    "Green Lake",
+    "Bryant",
+    "Wallingford",
+    "University Heights",
+    "University District",
+    "University of Washington"
+  ],
+  "central area/squire park": [
+    "Minor",
+    "Mann",
+    "Broadway",
+    "Stevens",
+    "Harrison/Denny-Blaine",
+    "Madrona",
+    "Leschi",
+    "Atlantic"
+  ],
+  "lakecity": [
+    "Olympic Hills",
+    "Victory Heights",
+    "Cedar Park",
+    "Meadowbrook"
+  ],
+  "belltown": "Belltown",
+  "north beacon hill": "North Beacon Hill",
+  "pioneer square": "Pioneer Square",
+  "bitterlake": [
+    "Bitter Lake",
+    "Broadview"
+  ],
+  "sodo": "SODO",
+  "mount baker": [
+    "Mann",
+    "Atlantic",
+    "North Beacon Hill",
+    "Columbia City",
+    "Mount Baker",
+    "Seward Park"
+  ],
+  "alaska junction": [
+    "Alaska Junction, West Seattle Junction",
+    "Fairmount Park"
+  ],
+  "sandpoint": [
+    "Matthews Beach",
+    "Wedgwood",
+    "View Ridge",
+    "Bryant",
+    "Windermere",
+    "Laurelhurst",
+    "Sand Point",
+    "Ravenna",
+    "Maple Leaf",
+    "Meadowbrook"
+  ],
+  "greenwood": "Greenwood",
+  "roxhill/westwood/arbor heights": [
+    "Westwood Village",
+    "Arbor Heights"
+  ],
+  "rainier beach": [
+    "Seward Park",
+    "South Beacon Hill",
+    "Dunlap"
+  ],
+  "judkins park/north beacon hill": "Judkins Park, Jackson Place, Colman",
+  "fremont": "Fremont",
+  "ballard north": [
+    "Crown Hill",
+    "Loyal Heights",
+    "Whittier Heights",
+    "North Beach/Blue Ridge",
+    "Sunset Hill",
+    "Ballard",
+    "West Woodland",
+    "Phinney Ridge",
+    "Greenwood"
+  ],
+  "georgetown": [
+    "Georgetown",
+    "Industrial District"
+  ],
+  "wallingford": "Wallingford",
+  "brighton/dunlap": [
+    "Brighton",
+    "Dunlap"
+  ],
+  "high point": "High Point",
+  "magnolia": [
+    "Magnolia",
+    "Interbay"
+  ],
+  "alki": "Alki",
+  "madrona/leschi": [
+    "Mann",
+    "Atlantic",
+    "Mount Baker",
+    "Leschi",
+    "Madrona",
+    "Harrison/Denny-Blaine"
+  ],
+  "highland park": [
+    "Highland Park",
+    "South Delridge",
+    "Riverview",
+    "South Park",
+    "Industrial District"
+  ],
+  "north admiral": "North Admiral",
+  "north delridge": [
+    "North Delridge",
+    "Riverview"
+  ],
+  "mid beacon hill": "Mid-Beacon Hill",
+  "rainier view": [
+    "South Beacon Hill",
+    "Rainier Beach",
+    "Rainier View",
+    "Dunlap"
+  ],
+  "morgan": [
+    "Seaview",
+    "Gatewood",
+    "Fairmount Park",
+    "High Point",
+    "Roxhill",
+    "Fauntleroy"
+  ],
+  "claremont/rainier vista": [
+    "North Rainier",
+    "Columbia City"
+  ],
+  "south park": "South Park",
+  "miller park": "Interlaken Park, Miller Park, Madison-Miller",
+  "south beacon hill": "South Beacon Hill",
+  "phinney ridge": "Phinney Ridge",
+  "new holly": "New Holly",
+  "lakewood/seward park": "Lakewood, Hillman City",
+  "columbia city": "Columbia City",
+  "montlake/portage bay": [
+    "Portage Bay",
+    "Eastlake",
+    "Broadway",
+    "Montlake",
+    "Stevens",
+    "Madison Park",
+    "Harrison/Denny-Blaine",
+    "Madrona"
+  ],
+  "eastlake - west": "Eastlake",
+  "genesee": [
+    "Mount Baker",
+    "Columbia City",
+    "Seward Park"
+  ],
+  "hillman city": [
+    "Columbia City",
+    "Mid-Beacon Hill",
+    "Brighton"
+  ],
+  "south delridge": "South Delridge",
+  "commercial duwamish": [
+    "Eastlake",
+    "Industrial District",
+    "North Admiral",
+    "North Delridge",
+    "Riverview"
+  ],
+  "madison park": "Madison Park",
+  "fauntleroy sw": "Fauntleroy",
+  "eastlake - east": [
+    "Broadway",
+    "Montlake"
+  ],
+  "pigeon point": "Avalon, Luna Park, Pigeon Point",
+  "commercial harbor island": "Harbor Island"
+}

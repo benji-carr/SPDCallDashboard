@@ -1,0 +1,25 @@
+{
+  "refreshed_at_utc": "2026-07-22T06:13:31.839135+00:00",
+  "source_start_date": "2025-07-18",
+  "row_count": 600704,
+  "columns": [
+    "cad_event_number",
+    "cad_event_original_time_queued",
+    "cad_event_arrived_time",
+    "cad_event_clearance_description",
+    "call_sign_dispatch_id",
+    "call_type",
+    "priority",
+    "initial_call_type",
+    "final_call_type",
+    "cad_event_response_category",
+    "dispatch_precinct",
+    "dispatch_sector",
+    "dispatch_beat",
+    "dispatch_neighborhood",
+    "dispatch_latitude",
+    "dispatch_longitude",
+    "count_of_officers",
+    "event_group"
+  ]
+}

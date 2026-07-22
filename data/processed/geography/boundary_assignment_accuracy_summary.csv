@@ -1,0 +1,5 @@
+metric,value,percentage
+mappable unique CAD events evaluated,258448,100.0
+correctly labeled events,213846,82.7423698384201
+events inside a different mapped neighborhood,44289,17.13652262737572
+events not inside any mapped neighborhood polygon,313,0.1211075342041726

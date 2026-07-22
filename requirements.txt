@@ -1,0 +1,7 @@
+dash
+gunicorn
+pandas
+plotly
+pyarrow
+requests
+pytest
