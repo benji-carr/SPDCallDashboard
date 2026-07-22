@@ -1,0 +1,82 @@
+html,
+body,
+#react-entry-point,
+#_dash-app-content {
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    padding: 0;
+    overflow: hidden !important;
+    background-color: #111111;
+}
+
+* {
+    box-sizing: border-box;
+}
+
+.floating-control-panel {
+    position: absolute;
+    right: 18px;
+    top: 50%;
+    transform: translateY(-50%);
+    z-index: 999;
+    width: 150px;
+    color: #dddddd;
+    background-color: rgba(21, 21, 21, 0.92);
+    border: 1px solid rgba(255, 255, 255, 0.22);
+    border-radius: 8px;
+    box-shadow: 0 4px 18px rgba(0, 0, 0, 0.45);
+    overflow: hidden;
+}
+
+.floating-control-panel summary {
+    cursor: pointer;
+    list-style: none;
+    padding: 8px 10px;
+    font-size: 12px;
+    font-weight: 600;
+    color: #eeeeee;
+    background-color: rgba(35, 35, 35, 0.95);
+}
+
+.floating-control-panel summary::-webkit-details-marker {
+    display: none;
+}
+
+.floating-control-panel summary::before {
+    content: "☰ ";
+    color: #cccccc;
+}
+
+.floating-control-panel[open] {
+    width: 190px;
+}
+
+.control-sidebar {
+    padding: 10px;
+    color: #dddddd;
+}
+
+.control-sidebar label,
+.control-sidebar span {
+    color: #dddddd !important;
+}
+
+.control-sidebar input {
+    accent-color: #cccccc;
+}
+
+.type-dropdown .Select-control {
+    min-height: 30px;
+    height: 30px;
+}
+
+.type-dropdown .Select-placeholder,
+.type-dropdown .Select-value,
+.type-dropdown .Select-value-label {
+    line-height: 30px !important;
+}
+
+.type-dropdown .Select-menu-outer {
+    z-index: 9999;
+}

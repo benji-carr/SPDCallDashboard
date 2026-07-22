@@ -25,11 +25,7 @@ def get_default_map_date_range(context: dict) -> tuple[str, str]:
         errors="coerce",
     )
 
-    valid_dates = (
-        valid_time[TIME_COLUMN]
-        .dropna()
-        .dt.normalize()
-    )
+    valid_dates = valid_time[TIME_COLUMN].dropna().dt.normalize()
 
     if valid_dates.empty:
         raise ValueError("No valid dates available for default map date range")
@@ -247,95 +243,82 @@ def create_app() -> Dash:
                                 "Seattle SPD Call Dashboard",
                                 style={
                                     "margin": "0",
-                                    "fontSize": "21px",
+                                    "fontSize": "19px",
+                                    "lineHeight": "21px",
                                     "color": "white",
                                 },
                             ),
                             html.P(
                                 (
-                                    "MCPP neighborhood call volume, daily trends, "
-                                    "and response-time context by event-importance bin."
+                                    "Neighborhood call volume, daily trends, "
+                                    "and response-time context by type of crime."
                                 ),
                                 style={
-                                    "margin": "4px 0 0 0",
+                                    "margin": "2px 0 0 0",
                                     "color": "#bbbbbb",
-                                    "fontSize": "12px",
+                                    "fontSize": "11px",
+                                    "lineHeight": "13px",
                                 },
                             ),
                         ],
+                        style={
+                            "minWidth": "0",
+                        },
                     ),
 
                     html.Div(
                         children=[
                             html.Label(
-                                "Event importance bins",
+                                "Type of Crime",
                                 style={
                                     "fontSize": "12px",
                                     "color": "#dddddd",
+                                    "whiteSpace": "nowrap",
                                 },
                             ),
                             dcc.Dropdown(
                                 id="importance-bin-filter",
+                                className="type-dropdown",
                                 options=bin_options,
                                 value=default_bin_value,
                                 clearable=False,
                                 style={
-                                    "minWidth": "340px",
+                                    "width": "320px",
                                     "color": "#111111",
                                     "fontSize": "13px",
                                 },
                             ),
                         ],
-                    ),
-
-                    html.Div(
-                        children=[
-                            dcc.Checklist(
-                                id="legend-toggle",
-                                options=[
-                                    {
-                                        "label": " Map color scale",
-                                        "value": "map_colorbar",
-                                    },
-                                    {
-                                        "label": " Daily legend",
-                                        "value": "daily",
-                                    },
-                                    {
-                                        "label": " Scatter legend",
-                                        "value": "scatter",
-                                    },
-                                ],
-                                value=[],
-                                style={
-                                    "color": "#dddddd",
-                                    "fontSize": "12px",
-                                    "lineHeight": "1.6",
-                                },
-                            ),
-                        ],
+                        style={
+                            "display": "flex",
+                            "alignItems": "center",
+                            "justifyContent": "center",
+                            "gap": "10px",
+                            "minWidth": "0",
+                        },
                     ),
 
                     html.Div(
                         id="map-point-window-label",
-                        children=(
-                            f"Map points: {default_start} to {default_end}"
-                        ),
+                        children=f"Map points: {default_start} to {default_end}",
                         style={
                             "color": "#bbbbbb",
-                            "fontSize": "12px",
-                            "minWidth": "260px",
+                            "fontSize": "11px",
                             "textAlign": "right",
+                            "whiteSpace": "nowrap",
+                            "overflow": "hidden",
+                            "textOverflow": "ellipsis",
+                            "minWidth": "0",
                         },
                     ),
                 ],
                 style={
-                    "height": "62px",
+                    "height": "52px",
                     "display": "grid",
-                    "gridTemplateColumns": "minmax(0, 1.35fr) auto auto minmax(260px, 0.9fr)",
+                    "gridTemplateColumns": "minmax(250px, 1fr) minmax(330px, 420px) minmax(250px, 0.9fr)",
                     "alignItems": "center",
-                    "gap": "16px",
-                    "padding": "8px 14px",
+                    "gap": "12px",
+                    "padding": "6px 10px",
                     "backgroundColor": "#151515",
                     "borderBottom": "1px solid #333333",
                     "boxSizing": "border-box",
@@ -410,15 +393,60 @@ def create_app() -> Dash:
                             "gridRow": "2",
                         },
                     ),
+
+                    html.Details(
+                        children=[
+                            html.Summary("Controls"),
+                            html.Div(
+                                children=[
+                                    html.P(
+                                        "Map point legend is always visible.",
+                                        style={
+                                            "margin": "0 0 8px 0",
+                                            "fontSize": "11px",
+                                            "lineHeight": "14px",
+                                            "color": "#bbbbbb",
+                                        },
+                                    ),
+                                    dcc.Checklist(
+                                        id="legend-toggle",
+                                        options=[
+                                            {
+                                                "label": " Map color scale",
+                                                "value": "map_colorbar",
+                                            },
+                                            {
+                                                "label": " Daily legend",
+                                                "value": "daily",
+                                            },
+                                            {
+                                                "label": " Scatter legend",
+                                                "value": "scatter",
+                                            },
+                                        ],
+                                        value=[],
+                                        className="control-sidebar",
+                                        style={
+                                            "fontSize": "12px",
+                                            "lineHeight": "1.8",
+                                        },
+                                    ),
+                                ],
+                                className="control-sidebar",
+                            ),
+                        ],
+                        className="floating-control-panel",
+                    ),
                 ],
                 style={
+                    "position": "relative",
                     "display": "grid",
-                    "gridTemplateColumns": "minmax(0, 1.25fr) minmax(0, 1fr)",
+                    "gridTemplateColumns": "minmax(0, 1.2fr) minmax(0, 1fr)",
                     "gridTemplateRows": "minmax(0, 1fr) minmax(0, 1fr)",
-                    "gap": "10px",
-                    "height": "calc(100vh - 62px)",
-                    "width": "100vw",
-                    "padding": "10px",
+                    "gap": "8px",
+                    "height": "calc(100dvh - 52px)",
+                    "width": "100%",
+                    "padding": "8px",
                     "backgroundColor": "#111111",
                     "boxSizing": "border-box",
                     "minHeight": "0",
@@ -428,8 +456,8 @@ def create_app() -> Dash:
             ),
         ],
         style={
-            "height": "100vh",
-            "width": "100vw",
+            "height": "100dvh",
+            "width": "100%",
             "backgroundColor": "#111111",
             "fontFamily": "Arial, sans-serif",
             "overflow": "hidden",

@@ -21,20 +21,40 @@ from spd_config import (
 from spd_event_bins import make_bin_combo_label
 
 
-def get_dataset_relative_daily_window(
-    data: pd.DataFrame,
-) -> dict[str, pd.Timestamp]:
+BIN_COLOR_MAP = {
+    "drug-related": "#2F80ED",             # blue
+    "property/nonviolent": "#27AE60",      # green
+    "violent/person crime": "#EB5757",     # red
+}
+
+
+def get_bin_color(bin_name: str) -> str:
+    return BIN_COLOR_MAP.get(bin_name, "#bbbbbb")
+
+
+def get_combo_color(selected_bins: list[str]) -> str:
+    if len(selected_bins) == 1:
+        return get_bin_color(selected_bins[0])
+
+    return "#dddddd"
+
+
+def get_dataset_relative_daily_window(data: pd.DataFrame) -> dict:
     if "date" not in data.columns:
-        raise ValueError("DataFrame must contain a date column")
+        raise ValueError("DataFrame is missing required column: date")
 
-    latest_available_day = data["date"].max()
+    valid_dates = pd.to_datetime(
+        data["date"],
+        errors="coerce",
+    ).dropna()
 
-    if pd.isna(latest_available_day):
-        raise ValueError("No valid dates are available")
+    if valid_dates.empty:
+        raise ValueError("No valid dates available for daily chart")
 
-    earliest_available_day = data["date"].min()
+    latest_available_day = valid_dates.max().normalize()
+    earliest_available_day = valid_dates.min().normalize()
+
     earliest_analysis_day = earliest_available_day + pd.Timedelta(days=1)
-
     past_year_start = latest_available_day - pd.Timedelta(days=364)
 
     plot_start_day = max(
@@ -43,12 +63,14 @@ def get_dataset_relative_daily_window(
     )
 
     plot_end_day = latest_available_day
-
     initial_view_start = latest_available_day - pd.Timedelta(days=29)
 
+    if initial_view_start < plot_start_day:
+        initial_view_start = plot_start_day
+
     return {
-        "latest_available_day": latest_available_day,
         "earliest_available_day": earliest_available_day,
+        "latest_available_day": latest_available_day,
         "earliest_analysis_day": earliest_analysis_day,
         "plot_start_day": plot_start_day,
         "plot_end_day": plot_end_day,
@@ -59,7 +81,7 @@ def get_dataset_relative_daily_window(
 def prepare_daily_event_data(
     context: dict,
     selected_bins: list[str],
-) -> tuple[pd.DataFrame, dict[str, pd.Timestamp]]:
+) -> tuple[pd.DataFrame, dict]:
     valid_time = context["valid_time"].copy()
 
     required_columns = [
@@ -94,39 +116,53 @@ def prepare_daily_event_data(
 
     window = get_dataset_relative_daily_window(valid_time)
 
-    valid_time = valid_time[
-        valid_time["date"].between(
-            window["plot_start_day"],
-            window["plot_end_day"],
-        )
-    ].copy()
+    plot_start_day = window["plot_start_day"]
+    plot_end_day = window["plot_end_day"]
 
-    selected_events = valid_time[
-        valid_time["event_importance_bin"].isin(selected_bins)
+    filtered = valid_time[
+        valid_time["date"].between(
+            plot_start_day,
+            plot_end_day,
+        )
+        & valid_time["event_importance_bin"].isin(selected_bins)
     ].copy()
 
     date_index = pd.date_range(
-        window["plot_start_day"],
-        window["plot_end_day"],
+        start=plot_start_day,
+        end=plot_end_day,
         freq="D",
     )
 
     daily_volume = (
-        selected_events
-        .groupby("date")
+        filtered
+        .groupby("date", as_index=False)
         .agg(
             unique_call_events=(EVENT_ID_COLUMN, "nunique"),
             dispatch_records=(ROW_ID_COLUMN, "nunique"),
         )
-        .reindex(date_index, fill_value=0)
+        .set_index("date")
+        .reindex(date_index)
+        .fillna(0)
         .rename_axis("date")
         .reset_index()
-        .sort_values("date")
     )
 
-    daily_volume["unique_call_events_7d_avg"] = (
+    daily_volume["unique_call_events"] = (
         daily_volume["unique_call_events"]
-        .rolling(window=7, min_periods=7)
+        .astype(int)
+    )
+
+    daily_volume["dispatch_records"] = (
+        daily_volume["dispatch_records"]
+        .astype(int)
+    )
+
+    daily_volume["rolling_7_day_avg"] = (
+        daily_volume["unique_call_events"]
+        .rolling(
+            window=7,
+            min_periods=7,
+        )
         .mean()
     )
 
@@ -137,12 +173,13 @@ def make_daily_figure(
     context: dict,
     selected_bins: list[str],
 ) -> go.Figure:
+    combo_label = make_bin_combo_label(selected_bins)
+    combo_color = get_combo_color(selected_bins)
+
     daily_volume, window = prepare_daily_event_data(
         context=context,
         selected_bins=selected_bins,
     )
-
-    combo_label = make_bin_combo_label(selected_bins)
 
     fig = go.Figure()
 
@@ -151,10 +188,14 @@ def make_daily_figure(
             x=daily_volume["date"],
             y=daily_volume["unique_call_events"],
             mode="lines",
-            name="Daily events",
+            name="Daily unique CAD events",
+            line=dict(
+                width=1.4,
+                color=combo_color,
+            ),
+            opacity=0.45,
             hovertemplate=(
                 "<b>%{x|%Y-%m-%d}</b><br>"
-                f"Selected importance bin(s): {combo_label}<br>"
                 "Daily unique CAD events: %{y:,}"
                 "<extra></extra>"
             ),
@@ -164,30 +205,32 @@ def make_daily_figure(
     fig.add_trace(
         go.Scatter(
             x=daily_volume["date"],
-            y=daily_volume["unique_call_events_7d_avg"],
+            y=daily_volume["rolling_7_day_avg"],
             mode="lines",
             name="7-day average",
+            line=dict(
+                width=3,
+                color=combo_color,
+            ),
             hovertemplate=(
                 "<b>%{x|%Y-%m-%d}</b><br>"
-                f"Selected importance bin(s): {combo_label}<br>"
-                "7-day average unique CAD events: %{y:,.1f}"
+                "7-day average: %{y:,.1f}"
                 "<extra></extra>"
             ),
         )
     )
 
     fig.update_layout(
-        title=(
-            "Daily SPD Unique CAD Events with 7-Day Average "
-            f"({combo_label})"
+        title=dict(  # Figure title: shortened main title with Type of Crime moved into subtitle
+            text=f"Daily Crime Events<br><sup>Type of Crime: {combo_label}</sup>",
+            x=0.01,
+            xanchor="left",
         ),
         template=PLOTLY_TEMPLATE,
         plot_bgcolor=PLOT_BG,
         paper_bgcolor=PAPER_BG,
-        xaxis_title="Date",
-        yaxis_title="Unique CAD events",
-        legend_title_text="Metric",
         xaxis=dict(
+            title=None,
             range=[
                 window["initial_view_start"],
                 window["plot_end_day"],
@@ -196,31 +239,48 @@ def make_daily_figure(
                 visible=True,
                 thickness=0.08,
             ),
+            automargin=True,
+        ),
+        yaxis=dict(
+            title=dict(
+                text="Unique CAD events",
+                standoff=12,
+            ),
+            automargin=True,
         ),
         margin={
-            "l": 50,
-            "r": 35,
-            "t": 55,
+            "l": 70,
+            "r": 25,
+            "t": 58,
             "b": 45,
         },
+        hovermode="x unified",
+        legend_title_text="Metric",
         showlegend=False,
     )
 
     fig.add_annotation(
         text=(
-            f"Initial view: {window['initial_view_start'].date()} "
-            f"to {window['plot_end_day'].date()}"
+            "Initial view shows latest 30 days; "
+            "range slider covers dashboard data window."
         ),
-        x=0,
-        y=-0.22,
         xref="paper",
         yref="paper",
+        x=0.01,
+        y=0.98,
         showarrow=False,
-        xanchor="left",
-        font=dict(size=11),
+        align="left",
+        font=dict(
+            size=10,
+            color="#bbbbbb",
+        ),
+        bgcolor="rgba(0,0,0,0.35)",
+        bordercolor="rgba(255,255,255,0.15)",
+        borderwidth=1,
     )
 
     return fig
+
 
 def add_concern_score(data: pd.DataFrame) -> pd.DataFrame:
     out = data.copy()
@@ -310,8 +370,6 @@ def prepare_volume_response_scatter_data(
             unique_call_events=(EVENT_ID_COLUMN, "nunique"),
             median_response_minutes=("response_time_minutes", "median"),
             mean_response_minutes=("response_time_minutes", "mean"),
-            p75_response_minutes=("response_time_minutes", lambda x: x.quantile(0.75)),
-            p90_response_minutes=("response_time_minutes", lambda x: x.quantile(0.90)),
         )
     )
 
@@ -361,9 +419,13 @@ def make_volume_response_scatter(
 
     if plot_df.empty:
         fig.update_layout(
-            title=(
-                "Per-Capita Call Volume vs. Median SPD Response Time "
-                f"({combo_label})"
+            title=dict(  # Figure title: shortened main title with Type of Crime moved into subtitle
+                text=(
+                    "Call Volume (Per 1,000 Residents) vs. Median Response Time"
+                    f"<br><sup>Type of Crime: {combo_label}</sup>"
+                ),
+                x=0.01,
+                xanchor="left",
             ),
             template=PLOTLY_TEMPLATE,
             plot_bgcolor=PLOT_BG,
@@ -409,9 +471,9 @@ def make_volume_response_scatter(
                 bin_df["volume_rank"],
                 bin_df["response_rank"],
                 bin_df["concern_score"],
-                ],
-                axis=-1,
-            )
+            ],
+            axis=-1,
+        )
 
         fig.add_trace(
             go.Scatter(
@@ -424,12 +486,16 @@ def make_volume_response_scatter(
                     size=bin_df["marker_size"],
                     sizemode="diameter",
                     opacity=0.75,
-                    line=dict(width=0.8, color="white"),
+                    color=get_bin_color(bin_name),
+                    line=dict(
+                        width=0.8,
+                        color="white",
+                    ),
                 ),
                 customdata=customdata,
                 hovertemplate=(
                     "<b>%{customdata[0]}</b><br>"
-                    "Event importance bin: %{customdata[1]}<br>"
+                    "Type of Crime: %{customdata[1]}<br>"
                     "Population: %{customdata[2]:,.0f}<br>"
                     "Unique CAD events in dashboard window: %{customdata[3]:,}<br>"
                     "Annualized events per 1,000 residents: %{customdata[4]:.1f}<br>"
@@ -463,7 +529,8 @@ def make_volume_response_scatter(
                 color="white",
             ),
             hovertemplate=(
-                f"Median annualized event rate: {median_event_rate:.1f} per 1,000 residents"
+                f"Median annualized event rate: {median_event_rate:.1f} "
+                "per 1,000 residents"
                 "<extra></extra>"
             ),
         )
@@ -495,9 +562,10 @@ def make_volume_response_scatter(
     )
 
     fig.update_layout(
-        title=(
-            "Per-Capita Call Volume vs. Median SPD Response Time "
-            f"({combo_label}, dashboard window)"
+        title=dict(  # Figure title: shortened main title with Type of Crime moved into subtitle
+            text=f"Call Volume (Per 1,000 Residents) vs. Median Response Time<br><sup>Type of Crime: {combo_label}</sup>",
+            x=0.01,
+            xanchor="left",
         ),
         template=PLOTLY_TEMPLATE,
         plot_bgcolor=PLOT_BG,
@@ -517,17 +585,18 @@ def make_volume_response_scatter(
             ),
             automargin=True,
         ),
-        legend_title_text="Event importance bin",
+        legend_title_text="Type of Crime",
         margin={
             "l": 90,
             "r": 35,
-            "t": 70,
+            "t": 58,
             "b": 65,
         },
         showlegend=False,
     )
 
     return fig
+
 
 def make_map_figure(
     context: dict,
@@ -634,7 +703,11 @@ def make_map_figure(
         fig = go.Figure()
 
         fig.update_layout(
-            title="Map unavailable: no mappable events",
+            title=dict(  # Figure title: fallback title shown only if no mappable events exist
+                text="Map unavailable<br><sup>No mappable events</sup>",
+                x=0.01,
+                xanchor="left",
+            ),
             template=PLOTLY_TEMPLATE,
             paper_bgcolor=PAPER_BG,
             mapbox=dict(
@@ -806,13 +879,14 @@ def make_map_figure(
                 },
             },
             colorbar={
-                "title": "Selected-bin events<br>per 1,000 residents",
+                "title": "Selected crime<br>events per 1,000",
                 "x": 0.98,
                 "y": 0.50,
                 "len": 0.62,
             },
             showscale=show_colorbar,
             name="Past-year events per 1,000 residents",
+            showlegend=False,
             customdata=choropleth_gdf[
                 [
                     "mcpp_neighborhood_display",
@@ -824,12 +898,12 @@ def make_map_figure(
             ].to_numpy(),
             hovertemplate=(
                 "<b>%{customdata[0]}</b><br>"
-                f"Selected importance bin(s): {combo_label}<br>"
+                f"Type of Crime: {combo_label}<br>"
                 "Population: %{customdata[1]:,.0f}<br>"
                 "<br>"
-                "Past-year unique CAD events in selected bin(s): %{customdata[3]:,}<br>"
-                "Past-year selected-bin events per 1,000 residents: %{customdata[2]:.1f}<br>"
-                "Median response time for selected bin(s): %{customdata[4]:.1f} min"
+                "Past-year unique CAD events: %{customdata[3]:,}<br>"
+                "Past-year events per 1,000 residents: %{customdata[2]:.1f}<br>"
+                "Median response time: %{customdata[4]:.1f} min"
                 "<extra></extra>"
             ),
         )
@@ -955,10 +1029,11 @@ def make_map_figure(
                 mode="markers",
                 name=bin_name,
                 legendgroup=bin_name,
-                showlegend=False,
+                showlegend=True,
                 marker=dict(
                     size=8,
                     opacity=0.85,
+                    color=get_bin_color(bin_name),
                 ),
                 customdata=bin_points[
                     [
@@ -979,8 +1054,8 @@ def make_map_figure(
                 hovertemplate=(
                     "<b>CAD Event:</b> %{customdata[0]}<br>"
                     "<b>Time:</b> %{customdata[1]}<br>"
-                    f"<b>Selected importance bin(s):</b> {combo_label}<br>"
-                    "<b>Point bin:</b> %{customdata[2]}<br>"
+                    f"<b>Selected Type of Crime:</b> {combo_label}<br>"
+                    "<b>Point Type of Crime:</b> %{customdata[2]}<br>"
                     "<b>Event group:</b> %{customdata[3]}<br>"
                     "<b>Priority:</b> %{customdata[4]}<br>"
                     "<br>"
@@ -989,18 +1064,19 @@ def make_map_figure(
                     "<b>Neighborhood:</b> %{customdata[7]}<br>"
                     "<br>"
                     "<b>Population:</b> %{customdata[8]}<br>"
-                    "<b>Past-year unique CAD events in selected bin(s):</b> %{customdata[9]}<br>"
-                    "<b>Past-year selected-bin events per 1,000 residents:</b> %{customdata[10]}<br>"
-                    "<b>Median response time for selected bin(s):</b> %{customdata[11]}"
+                    "<b>Past-year unique CAD events:</b> %{customdata[9]}<br>"
+                    "<b>Past-year events per 1,000 residents:</b> %{customdata[10]}<br>"
+                    "<b>Median response time:</b> %{customdata[11]}"
                     "<extra></extra>"
                 ),
             )
         )
 
     fig.update_layout(
-        title=(
-            "Past-Year Unique CAD Events per 1,000 Residents "
-            f"by MCPP Neighborhood ({combo_label})"
+        title=dict(  # Figure title: shortened main title with Type of Crime moved into subtitle
+            text=f"Crimes committed Per 1,000 Residents In the Past Year<br><sup>Type of Crime: {combo_label}</sup>",
+            x=0.01,
+            xanchor="left",
         ),
         template=PLOTLY_TEMPLATE,
         paper_bgcolor=PAPER_BG,
@@ -1010,22 +1086,34 @@ def make_map_figure(
             center=PLOTLY_SEATTLE_CENTER,
             zoom=10,
         ),
+        legend=dict(
+            title="Point Type",
+            x=0.02,
+            y=0.50,
+            xanchor="left",
+            yanchor="middle",
+            bgcolor="rgba(0,0,0,0.55)",
+            bordercolor="rgba(255,255,255,0.25)",
+            borderwidth=1,
+            font=dict(
+                color="#dddddd",
+                size=11,
+            ),
+        ),
         margin={
             "l": 0,
             "r": 0,
-            "t": 45,
+            "t": 58,
             "b": 0,
         },
-        showlegend=False,
+        showlegend=True,
     )
 
     return fig
 
 
-# temporary manual test
 if __name__ == "__main__":
     from spd_dashboard_data import load_dashboard_context
-    from spd_config import TARGET_IMPORTANCE_BINS
 
     context = load_dashboard_context()
 
