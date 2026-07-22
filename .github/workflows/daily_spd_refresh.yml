@@ -1,0 +1,91 @@
+name: Daily SPD Data Refresh
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 11 * * *"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: daily-spd-data-refresh
+  cancel-in-progress: false
+
+jobs:
+  refresh-data:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Refresh rolling SPD snapshot
+        run: |
+          python refresh_data.py
+
+      - name: Rebuild geography lookup cache
+        run: |
+          rm -f data/processed/geography/event_mcpp_lookup.parquet
+
+          python - <<'PY'
+          from spd_dashboard_data import load_dashboard_context
+
+          context = load_dashboard_context()
+
+          print(f"Snapshot rows: {len(context['df']):,}")
+          print(f"Mappable events: {len(context['mappable_events']):,}")
+          print(f"Event-MCPP rows: {len(context['event_mcpp']):,}")
+          print(f"Response-analysis rows: {len(context['response_analysis']):,}")
+          PY
+
+      - name: Run dashboard smoke test
+        run: |
+          python smoke_test_dashboard.py
+
+      - name: Show changed files
+        run: |
+          git status --short
+
+      - name: Commit refreshed data
+        id: commit-data
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add data/processed/spd_calls.parquet
+          git add data/processed/spd_calls_metadata.json
+          git add data/processed/geography/event_mcpp_lookup.parquet
+
+          if git diff --cached --quiet; then
+            echo "No data changes to commit."
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            git commit -m "Refresh SPD dashboard data"
+            git push
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Trigger Render deploy
+        if: steps.commit-data.outputs.changed == 'true'
+        env:
+          RENDER_DEPLOY_HOOK_URL: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
+        run: |
+          if [ -z "$RENDER_DEPLOY_HOOK_URL" ]; then
+            echo "No RENDER_DEPLOY_HOOK_URL secret configured; skipping Render deploy hook."
+          else
+            curl -X POST "$RENDER_DEPLOY_HOOK_URL"
+          fi
