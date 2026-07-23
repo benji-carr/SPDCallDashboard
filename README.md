@@ -1,1 +1,5 @@
+# Seattle SPD Call Dashboard
+
+[View the live dashboard](https://spdcalldashboard.onrender.com)
+
 This application is a dashboard that aims to provide information on the most recent available data on violent, drug-related, and property-related crimes in the City of Seattle. The data is from Seattle's Open Data Portal and can be found at [The Seattle Government Data Website](https://data.seattle.gov/Public-Safety/Call-Data/33kz-ixgy/about_data). Within this repository you can find the scripts for the dashboard, scripts for pulling data from the Socrata API that SPD uses, and the scripts for automatically updating the rolling snapshot of the last year of available data.  
