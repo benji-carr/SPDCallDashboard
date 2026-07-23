@@ -213,4 +213,17 @@ body,
         fill-opacity: 0.55 !important;
         stroke-opacity: 0.25 !important;
     }
+
+        /* Mobile map hover labels: shrink Plotly hover text */
+    .map-panel .hoverlayer .hovertext text {
+        font-size: 9px !important;
+    }
+
+    .map-panel .hoverlayer .hovertext tspan {
+        font-size: 9px !important;
+    }
+
+    .map-panel .hoverlayer .hovertext path {
+        stroke-width: 1px !important;
+    }
 }
