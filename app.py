@@ -261,6 +261,7 @@ def create_app() -> Dash:
                                 },
                             ),
                         ],
+                        className="title-block",
                         style={
                             "minWidth": "0",
                         },
@@ -289,6 +290,9 @@ def create_app() -> Dash:
                                 },
                             ),
                         ],
+
+                        className="type-control",
+
                         style={
                             "display": "flex",
                             "alignItems": "center",
@@ -311,7 +315,13 @@ def create_app() -> Dash:
                             "minWidth": "0",
                         },
                     ),
+
+                    html.Div(
+                        "Mobile view shows the interactive map only.",
+                        className="mobile-map-note",
+                    ),
                 ],
+                className="top-bar",
                 style={
                     "height": "52px",
                     "display": "grid",
@@ -334,6 +344,7 @@ def create_app() -> Dash:
                                 children=[
                                     dcc.Graph(
                                         id="map-figure",
+                                        className="map-graph",
                                         config={"responsive": True},
                                         style=GRAPH_STYLE,
                                     )
@@ -343,6 +354,7 @@ def create_app() -> Dash:
                                 parent_style=LOADING_STYLE,
                             ),
                         ],
+                        className="map-panel dashboard-panel",
                         style={
                             **PANEL_STYLE,
                             "gridColumn": "1",
@@ -365,6 +377,7 @@ def create_app() -> Dash:
                                 parent_style=LOADING_STYLE,
                             ),
                         ],
+                        className="daily-panel dashboard-panel",
                         style={
                             **PANEL_STYLE,
                             "gridColumn": "2",
@@ -387,6 +400,7 @@ def create_app() -> Dash:
                                 parent_style=LOADING_STYLE,
                             ),
                         ],
+                        className="scatter-panel dashboard-panel",
                         style={
                             **PANEL_STYLE,
                             "gridColumn": "2",
@@ -438,6 +452,7 @@ def create_app() -> Dash:
                         className="floating-control-panel",
                     ),
                 ],
+                className="dashboard-grid",
                 style={
                     "position": "relative",
                     "display": "grid",
@@ -455,6 +470,9 @@ def create_app() -> Dash:
                 },
             ),
         ],
+
+        className="app-shell",
+
         style={
             "height": "100dvh",
             "width": "100%",

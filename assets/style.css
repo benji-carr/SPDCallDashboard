@@ -80,3 +80,137 @@ body,
 .type-dropdown .Select-menu-outer {
     z-index: 9999;
 }
+
+.mobile-map-note {
+    display: none;
+}
+
+/* Mobile layout: map-only dashboard */
+@media screen and (max-width: 900px) {
+    .app-shell {
+        height: 100dvh !important;
+        width: 100vw !important;
+        overflow: hidden !important;
+    }
+
+    .top-bar {
+        height: auto !important;
+        min-height: 122px !important;
+        padding: 10px 12px !important;
+        display: flex !important;
+        flex-direction: column !important;
+        align-items: stretch !important;
+        justify-content: flex-start !important;
+        gap: 8px !important;
+    }
+
+    .title-block {
+        width: 100% !important;
+    }
+
+    .type-control {
+        width: 100% !important;
+        display: flex !important;
+        flex-direction: column !important;
+        align-items: stretch !important;
+        justify-content: flex-start !important;
+        gap: 4px !important;
+    }
+
+    .type-dropdown {
+        width: 100% !important;
+        max-width: none !important;
+    }
+
+    .type-dropdown .Select-control {
+        width: 100% !important;
+    }
+
+    .mobile-map-note {
+        display: block !important;
+        color: #aaaaaa;
+        font-size: 12px;
+        line-height: 16px;
+    }
+
+    .dashboard-grid {
+        height: calc(100dvh - 122px) !important;
+        width: 100vw !important;
+        display: grid !important;
+        grid-template-columns: 1fr !important;
+        grid-template-rows: 1fr !important;
+        gap: 0 !important;
+        padding: 0 !important;
+        overflow: hidden !important;
+    }
+
+    .daily-panel,
+    .scatter-panel {
+        display: none !important;
+    }
+
+    .map-panel {
+        grid-column: 1 !important;
+        grid-row: 1 !important;
+        height: 100% !important;
+        min-height: 0 !important;
+        width: 100% !important;
+        border-radius: 0 !important;
+        border: none !important;
+    }
+
+    .map-graph,
+    .map-panel .dash-graph,
+    .map-panel .js-plotly-plot,
+    .map-panel .plot-container,
+    .map-panel .svg-container {
+        height: 100% !important;
+        width: 100% !important;
+    }
+
+    .floating-control-panel {
+        right: 10px !important;
+        top: auto !important;
+        bottom: 12px !important;
+        transform: none !important;
+        width: 145px !important;
+        max-width: calc(100vw - 20px) !important;
+    }
+
+    .floating-control-panel[open] {
+        width: min(220px, calc(100vw - 20px)) !important;
+    }
+
+        /* Mobile map title: keep the title, shrink it, and hide long subtitle lines */
+    .map-panel .gtitle {
+        display: block !important;
+        font-size: 12px !important;
+        font-weight: 600 !important;
+    }
+
+    .map-panel .gtitle tspan {
+        font-size: 12px !important;
+    }
+
+    .map-panel .gtitle tspan:nth-child(n+2) {
+        display: none !important;
+    }
+
+    /* Mobile map legend: move point legend to top-left and make it smaller */
+    .map-panel .legend {
+        transform: translate(8px, 44px) !important;
+    }
+
+    .map-panel .legend text {
+        font-size: 9px !important;
+    }
+
+    .map-panel .legendtitletext {
+        font-size: 10px !important;
+    }
+
+    .map-panel .legend .bg {
+        fill-opacity: 0.55 !important;
+        stroke-opacity: 0.25 !important;
+    }
+}
