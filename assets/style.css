@@ -226,4 +226,90 @@ body,
     .map-panel .hoverlayer .hovertext path {
         stroke-width: 1px !important;
     }
+
+    .expand-button {
+        display: none !important;
+    }
+}
+
+.dashboard-panel {
+    position: relative;
+}
+
+.expand-button {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    z-index: 20;
+    width: 26px;
+    height: 26px;
+    padding: 0;
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    border-radius: 6px;
+    background-color: rgba(20, 20, 20, 0.72);
+    color: #eeeeee;
+    font-size: 15px;
+    line-height: 22px;
+    cursor: pointer;
+}
+
+.expand-button:hover {
+    background-color: rgba(60, 60, 60, 0.9);
+}
+
+.fullscreen-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 10000;
+    display: flex;
+    flex-direction: column;
+    background-color: #111111;
+    padding: 10px;
+}
+
+.fullscreen-overlay.hidden {
+    display: none !important;
+}
+
+.fullscreen-header {
+    height: 38px;
+    min-height: 38px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 0 4px 8px 4px;
+    color: #eeeeee;
+}
+
+.fullscreen-title {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 14px;
+    font-weight: 600;
+    color: #eeeeee;
+}
+
+.close-fullscreen-button {
+    width: 30px;
+    height: 30px;
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    border-radius: 6px;
+    background-color: rgba(30, 30, 30, 0.9);
+    color: #eeeeee;
+    font-size: 22px;
+    line-height: 24px;
+    cursor: pointer;
+}
+
+.close-fullscreen-button:hover {
+    background-color: rgba(70, 70, 70, 0.95);
+}
+
+.fullscreen-graph {
+    flex: 1;
+    min-height: 0;
+    width: 100%;
 }

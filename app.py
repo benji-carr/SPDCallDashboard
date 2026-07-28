@@ -1,7 +1,7 @@
 from functools import lru_cache
 
 import pandas as pd
-from dash import Dash, Input, Output, State, dcc, html
+from dash import Dash, Input, Output, State, ctx, dcc, html
 from dash.exceptions import PreventUpdate
 
 from spd_config import TIME_COLUMN
@@ -235,6 +235,11 @@ def create_app() -> Dash:
                 },
             ),
 
+            dcc.Store(
+                id="fullscreen-figure-store",
+                data=None,
+            ),
+
             html.Div(
                 children=[
                     html.Div(
@@ -340,6 +345,13 @@ def create_app() -> Dash:
                 children=[
                     html.Div(
                         children=[
+                            html.Button(
+                                "↗",
+                                id="expand-map-button",
+                                className="expand-button",
+                                title="Expand map",
+                            ),
+
                             dcc.Loading(
                                 children=[
                                     dcc.Graph(
@@ -364,6 +376,13 @@ def create_app() -> Dash:
 
                     html.Div(
                         children=[
+                            html.Button(
+                                "↗",
+                                id="expand-daily-button",
+                                className="expand-button",
+                                title="Expand daily chart",
+                            ),
+
                             dcc.Loading(
                                 children=[
                                     dcc.Graph(
@@ -387,6 +406,13 @@ def create_app() -> Dash:
 
                     html.Div(
                         children=[
+                            html.Button(
+                                "↗",
+                                id="expand-scatter-button",
+                                className="expand-button",
+                                title="Expand scatterplot",
+                            ),
+
                             dcc.Loading(
                                 children=[
                                     dcc.Graph(
@@ -468,6 +494,38 @@ def create_app() -> Dash:
                     "minWidth": "0",
                     "overflow": "hidden",
                 },
+            ),
+
+            html.Div(
+                children=[
+                    html.Div(
+                        children=[
+                            html.Div(
+                                id="fullscreen-title",
+                                className="fullscreen-title",
+                            ),
+                            html.Button(
+                                "×",
+                                id="close-fullscreen-button",
+                                className="close-fullscreen-button",
+                                title="Close fullscreen view",
+                            ),
+                        ],
+                        className="fullscreen-header",
+                    ),
+
+                    dcc.Graph(
+                        id="fullscreen-figure",
+                        className="fullscreen-graph",
+                        config={"responsive": True},
+                        style={
+                            "height": "100%",
+                            "width": "100%",
+                        },
+                    ),
+                ],
+                id="fullscreen-overlay",
+                className="fullscreen-overlay hidden",
             ),
         ],
 
@@ -588,6 +646,102 @@ def create_app() -> Dash:
         )
 
         return fig, label
+    
+    @app.callback(
+        Output("fullscreen-figure-store", "data"),
+        Input("expand-map-button", "n_clicks"),
+        Input("expand-daily-button", "n_clicks"),
+        Input("expand-scatter-button", "n_clicks"),
+        Input("close-fullscreen-button", "n_clicks"),
+        prevent_initial_call=True,
+    )
+    def update_fullscreen_store(
+        map_clicks,
+        daily_clicks,
+        scatter_clicks,
+        close_clicks,
+    ):
+        triggered_id = ctx.triggered_id
+
+        if triggered_id == "close-fullscreen-button":
+            return None
+
+        if triggered_id == "expand-map-button":
+            return "map"
+
+        if triggered_id == "expand-daily-button":
+            return "daily"
+
+        if triggered_id == "expand-scatter-button":
+            return "scatter"
+
+        raise PreventUpdate
+
+    @app.callback(
+        Output("fullscreen-overlay", "className"),
+        Output("fullscreen-title", "children"),
+        Output("fullscreen-figure", "figure"),
+        Input("fullscreen-figure-store", "data"),
+        Input("importance-bin-filter", "value"),
+        Input("daily-visible-range-store", "data"),
+        Input("legend-toggle", "value"),
+    )
+    def update_fullscreen_overlay(
+        fullscreen_target,
+        selected_bin_value,
+        range_store_data,
+        legend_values,
+    ):
+        if legend_values is None:
+            legend_values = []
+
+        if fullscreen_target is None:
+            return "fullscreen-overlay hidden", "", {}
+
+        if fullscreen_target == "map":
+            point_start_date, point_end_date = get_range_from_store(
+                range_store_data=range_store_data,
+                context=context,
+            )
+
+            show_colorbar = "map_colorbar" in legend_values
+
+            fig, visible_point_count = cached_map_figure(
+                selected_bin_value=selected_bin_value,
+                point_start_date=point_start_date,
+                point_end_date=point_end_date,
+                show_colorbar=show_colorbar,
+            )
+
+            title = (
+                f"Map view | {point_start_date} to {point_end_date}"
+                f" | {visible_point_count:,} visible points"
+            )
+
+            return "fullscreen-overlay", title, fig
+
+        if fullscreen_target == "daily":
+            show_legend = "daily" in legend_values
+
+            fig = cached_daily_figure(
+                selected_bin_value=selected_bin_value,
+                show_legend=show_legend,
+            )
+
+            return "fullscreen-overlay", "Daily crime events", fig
+
+        if fullscreen_target == "scatter":
+            show_legend = "scatter" in legend_values
+
+            fig = cached_scatter_figure(
+                selected_bin_value=selected_bin_value,
+                show_legend=show_legend,
+            )
+
+            return "fullscreen-overlay", "Call volume vs. response time", fig
+
+        raise PreventUpdate
+
 
     return app
 
