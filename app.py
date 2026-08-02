@@ -236,85 +236,289 @@ def count_map_points(fig) -> int:
 
     return point_count
 
-
-def make_landing_page() -> html.Div:
+def make_landing_page():
     return html.Div(
+        className="site-shell landing-site-shell",
         children=[
-            html.Div(
+            html.Header(
+                className="landing-topbar",
                 children=[
-                    html.H1(
-                        "Seattle Public Safety Dashboards",
-                        className="landing-title",
-                    ),
-                    html.P(
-                        (
-                            "Explore Seattle reported crime data and police calls "
-                            "for service through interactive maps and time-series views."
-                        ),
-                        className="landing-subtitle",
-                    ),
+                    html.Div(
+                        className="landing-topbar-inner",
+                        children=[
+                            html.A(
+                                href="https://data.seattle.gov",
+                                target="_blank",
+                                rel="noopener noreferrer",
+                                className="landing-brand-link",
+                                title="Visit the City of Seattle Open Data Portal",
+                                children=[
+                                    html.Img(
+                                        src="/assets/seattle-logo.png",
+                                        className="landing-brand-logo",
+                                        alt="Seattle logo",
+                                    ),
+                                    html.Span(
+                                        "Seattle",
+                                        className="landing-brand-text",
+                                    ),
+                                ],
+                            ),
+                            html.Nav(
+                                className="landing-external-nav",
+                                children=[
+                                    html.A(
+                                        "Open Data Program",
+                                        href=(
+                                            "https://www.seattle.gov/tech/"
+                                            "reports-and-data/open-data"
+                                        ),
+                                        target="_blank",
+                                        rel="noopener noreferrer",
+                                        className="landing-topbar-link",
+                                    ),
+                                    html.Span(
+                                        className="landing-topbar-divider",
+                                    ),
+                                    html.A(
+                                        href=(
+                                            "https://www.linkedin.com/in/"
+                                            "benji-carr-1a9b8c4/"
+                                        ),
+                                        target="_blank",
+                                        rel="noopener noreferrer",
+                                        className="landing-linkedin-link",
+                                        title="Visit Ben Carr on LinkedIn",
+                                        children=[
+                                            html.Img(
+                                                src="/assets/linkedin-logo.png",
+                                                className="landing-linkedin-logo",
+                                                alt="LinkedIn",
+                                            )
+                                        ],
+                                    ),
+                                ],
+                            ),
+                        ],
+                    )
                 ],
-                className="landing-header",
             ),
-
-            html.Div(
+            html.Main(
+                className="landing-hero",
                 children=[
-                    dcc.Link(
-                        children=html.Div(
-                            children=[
-                                html.Div(
-                                    "Crime Dashboard",
-                                    className="landing-card-title",
-                                ),
-                                html.Div(
-                                    (
-                                        "Reported crime offenses by neighborhood, "
-                                        "crime category, and recent time window."
+                    html.Div(
+                        className="landing-hero-content",
+                        children=[
+                            html.Section(
+                                className="landing-intro",
+                                children=[
+                                    html.H1(
+                                        "Seattle Public Safety Dashboards",
+                                        className="landing-title",
                                     ),
-                                    className="landing-card-text",
-                                ),
-                                html.Div(
-                                    "Open crime dashboard →",
-                                    className="landing-card-link",
-                                ),
-                            ],
-                            className="landing-card",
-                        ),
-                        href="/crime",
-                        className="landing-card-wrapper",
-                    ),
-
-                    dcc.Link(
-                        children=html.Div(
-                            children=[
-                                html.Div(
-                                    "Calls Dashboard",
-                                    className="landing-card-title",
-                                ),
-                                html.Div(
-                                    (
-                                        "SPD calls for service by event type, neighborhood, "
-                                        "daily volume, and response patterns."
+                                    html.P(
+                                        className="landing-subtitle",
+                                        children=[
+                                            (
+                                                "Welcome to our independently "
+                                                "developed Seattle public safety "
+                                                "dashboard. Here you can explore "
+                                                "Seattle reported crime data and "
+                                                "police calls for service through "
+                                                "interactive maps and time-series "
+                                                "views. All data is from the "
+                                            ),
+                                            html.A(
+                                                "City of Seattle Open Data Portal",
+                                                href="https://data.seattle.gov",
+                                                target="_blank",
+                                                rel="noopener noreferrer",
+                                                className="landing-inline-link",
+                                            ),
+                                            ".",
+                                        ],
                                     ),
-                                    className="landing-card-text",
+                                ],
+                            ),
+                            html.Section(
+                                className="landing-card-grid",
+                                children=[
+                                    dcc.Link(
+                                        href="/crime",
+                                        className="landing-card-wrapper",
+                                        children=[
+                                            html.Div(
+                                                className="landing-card",
+                                                children=[
+                                                    html.Div(
+                                                        className=(
+                                                            "landing-card-icon-frame"
+                                                        ),
+                                                        children=[
+                                                            html.Img(
+                                                                src="/assets/crime-dashboard-logo.png",
+                                                                alt=(
+                                                                    "Crime Dashboard"
+                                                                ),
+                                                                className=(
+                                                                    "landing-card-"
+                                                                    "icon-image"
+                                                                ),
+                                                            )
+                                                        ],
+                                                    ),
+                                                    html.H2(
+                                                        "Crime Dashboard",
+                                                        className=(
+                                                            "landing-card-title"
+                                                        ),
+                                                    ),
+                                                    html.P(
+                                                        (
+                                                            "Reported crime offenses "
+                                                            "by neighborhood, crime "
+                                                            "category, and recent "
+                                                            "time window."
+                                                        ),
+                                                        className=(
+                                                            "landing-card-text"
+                                                        ),
+                                                    ),
+                                                    html.Span(
+                                                        "Open crime dashboard →",
+                                                        className=(
+                                                            "landing-card-link"
+                                                        ),
+                                                    ),
+                                                ],
+                                            )
+                                        ],
+                                    ),
+                                    dcc.Link(
+                                        href="/calls",
+                                        className="landing-card-wrapper",
+                                        children=[
+                                            html.Div(
+                                                className="landing-card",
+                                                children=[
+                                                    html.Div(
+                                                        className=(
+                                                            "landing-card-icon-frame"
+                                                        ),
+                                                        children=[
+                                                            html.Img(
+                                                                src="/assets/call-dashboard-icon.png",
+                                                                alt=(
+                                                                    "Calls Dashboard"
+                                                                ),
+                                                                className=(
+                                                                    "landing-card-"
+                                                                    "icon-image"
+                                                                ),
+                                                            )
+                                                        ],
+                                                    ),
+                                                    html.H2(
+                                                        "Calls Dashboard",
+                                                        className=(
+                                                            "landing-card-title"
+                                                        ),
+                                                    ),
+                                                    html.P(
+                                                        (
+                                                            "SPD calls for service by "
+                                                            "event type, neighborhood, "
+                                                            "daily volume, and response "
+                                                            "patterns."
+                                                        ),
+                                                        className=(
+                                                            "landing-card-text"
+                                                        ),
+                                                    ),
+                                                    html.Span(
+                                                        "Open calls dashboard →",
+                                                        className=(
+                                                            "landing-card-link"
+                                                        ),
+                                                    ),
+                                                ],
+                                            )
+                                        ],
+                                    ),
+                                    html.A(
+                                        href=(
+                                            "https://www.linkedin.com/in/"
+                                            "benji-carr-1a9b8c4/"
+                                        ),
+                                        target="_blank",
+                                        rel="noopener noreferrer",
+                                        className="landing-card-wrapper",
+                                        children=[
+                                            html.Div(
+                                                className="landing-card",
+                                                children=[
+                                                    html.Div(
+                                                        className=(
+                                                            "landing-card-icon-frame"
+                                                        ),
+                                                        children=[
+                                                            html.Img(
+                                                                src="/assets/contact-developers-icon.png",
+                                                                alt=(
+                                                                    "Contact the "
+                                                                    "Developers"
+                                                                ),
+                                                                className=(
+                                                                    "landing-card-"
+                                                                    "icon-image"
+                                                                ),
+                                                            )
+                                                        ],
+                                                    ),
+                                                    html.H2(
+                                                        "Contact the Developers",
+                                                        className=(
+                                                            "landing-card-title"
+                                                        ),
+                                                    ),
+                                                    html.P(
+                                                        (
+                                                            "Share feedback, ask "
+                                                            "questions, or get in "
+                                                            "touch about the "
+                                                            "development of this "
+                                                            "project."
+                                                        ),
+                                                        className=(
+                                                            "landing-card-text"
+                                                        ),
+                                                    ),
+                                                    html.Span(
+                                                        "Contact us on LinkedIn →",
+                                                        className=(
+                                                            "landing-card-link"
+                                                        ),
+                                                    ),
+                                                ],
+                                            )
+                                        ],
+                                    ),
+                                ],
+                            ),
+                            html.P(
+                                (
+                                    "This is an independently developed project "
+                                    "and is not affiliated with or endorsed by the "
+                                    "City of Seattle or the Seattle Police Department."
                                 ),
-                                html.Div(
-                                    "Open calls dashboard →",
-                                    className="landing-card-link",
-                                ),
-                            ],
-                            className="landing-card",
-                        ),
-                        href="/calls",
-                        className="landing-card-wrapper",
-                    ),
+                                className="landing-disclaimer",
+                            ),
+                        ],
+                    )
                 ],
-                className="landing-card-grid",
             ),
         ],
-        className="landing-page",
     )
-
 
 def create_app() -> Dash:
     app = Dash(
