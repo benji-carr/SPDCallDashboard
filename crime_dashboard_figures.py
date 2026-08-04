@@ -25,16 +25,16 @@ from crime_dashboard_data import (
 
 
 TARGET_CRIME_CATEGORIES = [
-    "all other",
+    "other (includes drug and sex offenses)",
     "property crime",
     "violent crime",
 ]
 
 
 CRIME_CATEGORY_COLOR_MAP = {
-    "all other": "#9CA3AF",        # gray
-    "property crime": "#27AE60",   # green
-    "violent crime": "#EB5757",    # red
+    "other (includes drug and sex offenses)": "#9CA3AF",        # gray
+    "property crime": "#27AE60",                                # green
+    "violent crime": "#EB5757",                                 # red
 }
 
 
