@@ -124,7 +124,7 @@ def prepare_crime_snapshot(df: pd.DataFrame) -> pd.DataFrame:
         out[column] = clean_text_column(out[column])
 
     out["date"] = out[TIME_COLUMN].dt.date
-    out[CATEGORY_COLUMN].replace({"all other": "other (includes drug and sex offenses)"}, inplace=True)
+    out[CATEGORY_COLUMN] = out[CATEGORY_COLUMN].replace({"all other": "other (includes drug and sex offenses)"})
 
     # Compatibility columns for repurposing the calls-dashboard figure logic.
     # The calls dashboard filters by event_importance_bin.

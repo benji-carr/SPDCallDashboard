@@ -32,7 +32,7 @@ TARGET_CRIME_CATEGORIES = [
 
 
 CRIME_CATEGORY_COLOR_MAP = {
-    "other (includes drug and sex offenses)": "#9CA3AF",        # gray
+    "other (includes drug and sex offenses)": "#2F80ED",        # blue
     "property crime": "#27AE60",                                # green
     "violent crime": "#EB5757",                                 # red
 }
