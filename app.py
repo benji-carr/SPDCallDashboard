@@ -529,6 +529,35 @@ def create_app() -> Dash:
     calls_context = load_calls_dashboard_context()
     crime_context = load_crime_dashboard_context()
 
+    def make_options_from_series(series: pd.Series) -> list[dict[str, str]]:
+        values = (
+            series
+            .dropna()
+            .astype("string")
+            .str.strip()
+            .sort_values()
+            .unique()
+            .tolist()
+        )
+
+        return [
+            {
+                "label": value.title(),
+                "value": value,
+            }
+            for value in values
+            if value not in ["", "nan", "none"]
+        ]
+
+
+    crime_subcategory_options = make_options_from_series(
+        crime_context["event_mcpp"]["offense_sub_category"]
+    )
+
+    crime_neighborhood_options = make_options_from_series(
+        crime_context["event_mcpp"]["mcpp_neighborhood"]
+    )
+
     call_bin_options = make_bin_dropdown_options()
     default_call_bin_value = call_bin_options[0]["value"]
 
@@ -638,6 +667,7 @@ def create_app() -> Dash:
         point_start_date: str,
         point_end_date: str,
         show_colorbar: bool,
+        point_filters: dict | None = None,
     ):
         selected_categories = decode_combo(
             selected_category_value,
@@ -650,6 +680,7 @@ def create_app() -> Dash:
             point_start_date=point_start_date,
             point_end_date=point_end_date,
             show_colorbar=show_colorbar,
+            point_filters=point_filters,
         )
 
         fig.update_layout(
@@ -1163,6 +1194,7 @@ def create_app() -> Dash:
                                 html.Details(
                                     children=[
                                         html.Summary("Controls"),
+
                                         html.Div(
                                             children=[
                                                 html.P(
@@ -1174,6 +1206,7 @@ def create_app() -> Dash:
                                                         "color": "#bbbbbb",
                                                     },
                                                 ),
+
                                                 dcc.Checklist(
                                                     id="crime-legend-toggle",
                                                     options=[
@@ -1191,6 +1224,87 @@ def create_app() -> Dash:
                                                     style={
                                                         "fontSize": "12px",
                                                         "lineHeight": "1.8",
+                                                        "marginBottom": "10px",
+                                                    },
+                                                ),
+
+                                                html.Hr(
+                                                    style={
+                                                        "borderColor": "rgba(255,255,255,0.18)",
+                                                        "margin": "8px 0",
+                                                    },
+                                                ),
+
+                                                html.P(
+                                                    "Point filters",
+                                                    style={
+                                                        "margin": "8px 0 6px 0",
+                                                        "fontSize": "12px",
+                                                        "fontWeight": "bold",
+                                                        "color": "#dddddd",
+                                                    },
+                                                ),
+
+                                                html.Label(
+                                                    "Offense sub-category",
+                                                    style={
+                                                        "fontSize": "11px",
+                                                        "color": "#bbbbbb",
+                                                    },
+                                                ),
+
+                                                dcc.Dropdown(
+                                                    id="crime-point-subcategory-filter",
+                                                    options=crime_subcategory_options,
+                                                    value=[],
+                                                    multi=True,
+                                                    placeholder="All sub-categories",
+                                                    style={
+                                                        "color": "#111111",
+                                                        "fontSize": "12px",
+                                                        "marginBottom": "8px",
+                                                    },
+                                                ),
+
+                                                html.Label(
+                                                    "Neighborhood",
+                                                    style={
+                                                        "fontSize": "11px",
+                                                        "color": "#bbbbbb",
+                                                    },
+                                                ),
+
+                                                dcc.Dropdown(
+                                                    id="crime-point-neighborhood-filter",
+                                                    options=crime_neighborhood_options,
+                                                    value=[],
+                                                    multi=True,
+                                                    placeholder="All neighborhoods",
+                                                    style={
+                                                        "color": "#111111",
+                                                        "fontSize": "12px",
+                                                        "marginBottom": "8px",
+                                                    },
+                                                ),
+
+                                                html.Label(
+                                                    "Text search",
+                                                    style={
+                                                        "fontSize": "11px",
+                                                        "color": "#bbbbbb",
+                                                    },
+                                                ),
+
+                                                dcc.Input(
+                                                    id="crime-point-text-filter",
+                                                    type="text",
+                                                    debounce=True,
+                                                    placeholder="Search ID, report #, block...",
+                                                    style={
+                                                        "width": "100%",
+                                                        "fontSize": "12px",
+                                                        "padding": "5px",
+                                                        "boxSizing": "border-box",
                                                     },
                                                 ),
                                             ],
@@ -1198,6 +1312,9 @@ def create_app() -> Dash:
                                         ),
                                     ],
                                     className="floating-control-panel",
+                                    style={
+                                        "width": "330px",
+                                    },
                                 ),
                             ],
                             className="dashboard-grid crime-dashboard-grid",
@@ -1234,7 +1351,7 @@ def create_app() -> Dash:
             ],
             className="dashboard-page",
         )
-
+    
     app.layout = html.Div(
         children=[
             dcc.Location(id="url"),
@@ -1425,11 +1542,17 @@ def create_app() -> Dash:
         Input("crime-category-filter", "value"),
         Input("crime-daily-visible-range-store", "data"),
         Input("crime-legend-toggle", "value"),
+        Input("crime-point-subcategory-filter", "value"),
+        Input("crime-point-neighborhood-filter", "value"),
+        Input("crime-point-text-filter", "value"),
     )
     def update_crime_map_figure(
         selected_category_value,
         range_store_data,
         legend_values,
+        selected_subcategories,
+        selected_neighborhoods,
+        text_filter,
     ):
         if legend_values is None:
             legend_values = []
@@ -1440,6 +1563,12 @@ def create_app() -> Dash:
             default_end=default_crime_end,
         )
 
+        point_filters = {
+            "offense_sub_categories": selected_subcategories or [],
+            "mcpp_neighborhoods": selected_neighborhoods or [],
+            "text": text_filter or "",
+        }
+
         show_colorbar = "map_colorbar" in legend_values
 
         fig, visible_point_count = build_crime_map_figure(
@@ -1447,13 +1576,17 @@ def create_app() -> Dash:
             point_start_date=point_start_date,
             point_end_date=point_end_date,
             show_colorbar=show_colorbar,
+            point_filters=point_filters,
         )
 
         graph_key = (
             f"crime-map|{selected_category_value}|"
-            f"{point_start_date}|{point_end_date}|{show_colorbar}"
+            f"{point_start_date}|{point_end_date}|"
+            f"{show_colorbar}|"
+            f"{','.join(point_filters['offense_sub_categories'])}|"
+            f"{','.join(point_filters['mcpp_neighborhoods'])}|"
+            f"{point_filters['text']}"
         )
-
         graph = html.Div(
             children=[
                 dcc.Graph(

@@ -326,6 +326,7 @@ def make_map_figure(
     point_start_date: str | None = None,
     point_end_date: str | None = None,
     show_colorbar: bool = False,
+    point_filters: dict | None = None,
 ) -> go.Figure:
     event_mcpp = context["event_mcpp"].copy()
     mcpp_boundaries = context["mcpp_boundaries"].copy()
@@ -659,6 +660,11 @@ def make_map_figure(
             )
         ].copy()
 
+    point_events = apply_point_filters(
+        point_events=point_events,
+        point_filters=point_filters,
+    )
+
     point_metric_lookup = choropleth_gdf[
         [
             "mcpp_neighborhood",
@@ -846,6 +852,50 @@ def make_map_figure(
     )
 
     return fig
+
+def apply_point_filters(
+    point_events: pd.DataFrame,
+    point_filters: dict | None,
+) -> pd.DataFrame:
+    if point_filters is None:
+        return point_events
+
+    filtered = point_events.copy()
+
+    selected_subcategories = point_filters.get("offense_sub_categories", [])
+    selected_neighborhoods = point_filters.get("mcpp_neighborhoods", [])
+    text_filter = str(point_filters.get("text", "")).strip().lower()
+
+    if selected_subcategories:
+        filtered = filtered[
+            filtered["offense_sub_category"].isin(selected_subcategories)
+        ].copy()
+
+    if selected_neighborhoods:
+        filtered = filtered[
+            filtered["mcpp_neighborhood"].isin(selected_neighborhoods)
+        ].copy()
+
+    if text_filter:
+        searchable_text = (
+            filtered["offense_id"].astype("string").fillna("")
+            + " "
+            + filtered["report_number"].astype("string").fillna("")
+            + " "
+            + filtered["block_address"].astype("string").fillna("")
+            + " "
+            + filtered["offense_sub_category"].astype("string").fillna("")
+        ).str.lower()
+
+        filtered = filtered[
+            searchable_text.str.contains(
+                text_filter,
+                regex=False,
+                na=False,
+            )
+        ].copy()
+
+    return filtered
 
 
 if __name__ == "__main__":

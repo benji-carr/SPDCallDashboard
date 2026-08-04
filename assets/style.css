@@ -834,3 +834,36 @@ body,
         font-size: 0.78rem;
     }
 }
+
+/* Crime dashboard floating filter dropdowns */
+.floating-control-panel {
+    overflow: visible !important;
+    z-index: 2000 !important;
+}
+
+.floating-control-panel .Select {
+    width: 100%;
+}
+
+.floating-control-panel .Select-control {
+    min-height: 36px;
+}
+
+.floating-control-panel .Select-menu-outer {
+    z-index: 3000 !important;
+    max-height: 240px;
+    overflow-y: auto;
+}
+
+.floating-control-panel .Select-menu {
+    max-height: 220px;
+}
+
+.floating-control-panel .Select-option {
+    color: #111111;
+    font-size: 12px;
+}
+
+.floating-control-panel .Select-placeholder {
+    color: #777777;
+}
