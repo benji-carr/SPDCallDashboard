@@ -319,6 +319,144 @@ def make_daily_figure(
 
     return fig
 
+def normalize_mcpp_neighborhood(series: pd.Series) -> pd.Series:
+    return (
+        series
+        .astype("string")
+        .str.strip()
+        .str.lower()
+        .str.replace("&", "and", regex=False)
+        .str.replace(r"\s+", " ", regex=True)
+    )
+
+
+def prepare_neighborhood_total_counts(
+    event_mcpp: pd.DataFrame,
+    unmappable_events: pd.DataFrame,
+    selected_bins: list[str],
+    start_day: pd.Timestamp,
+    end_day: pd.Timestamp,
+) -> pd.DataFrame:
+    mappable = event_mcpp.copy()
+
+    mappable[TIME_COLUMN] = pd.to_datetime(
+        mappable[TIME_COLUMN],
+        errors="coerce",
+    )
+
+    mappable["mcpp_neighborhood"] = normalize_mcpp_neighborhood(
+        mappable["mcpp_neighborhood"]
+    )
+
+    mappable["event_importance_bin"] = (
+        mappable["event_importance_bin"]
+        .astype("string")
+        .str.strip()
+        .str.lower()
+    )
+
+    mappable = mappable[
+        mappable[TIME_COLUMN].notna()
+        & mappable[EVENT_ID_COLUMN].notna()
+        & mappable["mcpp_neighborhood"].notna()
+        & mappable["event_importance_bin"].isin(selected_bins)
+        & mappable[TIME_COLUMN].dt.normalize().between(start_day, end_day)
+    ].copy()
+
+    mappable_counts = (
+        mappable
+        .groupby("mcpp_neighborhood", as_index=False)
+        .agg(
+            past_year_mappable_events=(EVENT_ID_COLUMN, "nunique"),
+        )
+    )
+
+    if unmappable_events is None or unmappable_events.empty:
+        unmappable_counts = pd.DataFrame(
+            columns=[
+                "mcpp_neighborhood",
+                "past_year_unmappable_events",
+            ]
+        )
+
+    else:
+        unmappable = unmappable_events.copy()
+
+        required_unmappable_columns = [
+            EVENT_ID_COLUMN,
+            TIME_COLUMN,
+            "mcpp_neighborhood",
+            "event_importance_bin",
+        ]
+
+        missing_unmappable_columns = [
+            column
+            for column in required_unmappable_columns
+            if column not in unmappable.columns
+        ]
+
+        if missing_unmappable_columns:
+            raise ValueError(
+                "unmappable_events is missing required columns: "
+                + ", ".join(missing_unmappable_columns)
+            )
+
+        unmappable[TIME_COLUMN] = pd.to_datetime(
+            unmappable[TIME_COLUMN],
+            errors="coerce",
+        )
+
+        unmappable["mcpp_neighborhood"] = normalize_mcpp_neighborhood(
+            unmappable["mcpp_neighborhood"]
+        )
+
+        unmappable["event_importance_bin"] = (
+            unmappable["event_importance_bin"]
+            .astype("string")
+            .str.strip()
+            .str.lower()
+        )
+
+        unmappable = unmappable[
+            unmappable[TIME_COLUMN].notna()
+            & unmappable[EVENT_ID_COLUMN].notna()
+            & unmappable["mcpp_neighborhood"].notna()
+            & unmappable["event_importance_bin"].isin(selected_bins)
+            & unmappable[TIME_COLUMN].dt.normalize().between(start_day, end_day)
+        ].copy()
+
+        unmappable_counts = (
+            unmappable
+            .groupby("mcpp_neighborhood", as_index=False)
+            .agg(
+                past_year_unmappable_events=(EVENT_ID_COLUMN, "nunique"),
+            )
+        )
+
+    total_counts = mappable_counts.merge(
+        unmappable_counts,
+        on="mcpp_neighborhood",
+        how="outer",
+    )
+
+    total_counts["past_year_mappable_events"] = (
+        total_counts["past_year_mappable_events"]
+        .fillna(0)
+        .astype(int)
+    )
+
+    total_counts["past_year_unmappable_events"] = (
+        total_counts["past_year_unmappable_events"]
+        .fillna(0)
+        .astype(int)
+    )
+
+    total_counts["past_year_total_events"] = (
+        total_counts["past_year_mappable_events"]
+        + total_counts["past_year_unmappable_events"]
+    )
+
+    return total_counts
 
 def make_map_figure(
     context: dict,
@@ -329,6 +467,7 @@ def make_map_figure(
     point_filters: dict | None = None,
 ) -> go.Figure:
     event_mcpp = context["event_mcpp"].copy()
+    unmappable_events = context.get("unmappable_events", pd.DataFrame()).copy()
     mcpp_boundaries = context["mcpp_boundaries"].copy()
     neighborhood_population = context["neighborhood_population"].copy()
 
@@ -379,20 +518,18 @@ def make_map_figure(
             f"mcpp_boundaries is missing required columns: {missing_boundary_columns}"
         )
 
-    required_population_columns = [
-        "dispatch_neighborhood",
-        "population",
-    ]
-
-    missing_population_columns = [
-        column
-        for column in required_population_columns
-        if column not in neighborhood_population.columns
-    ]
-
-    if missing_population_columns:
+    if "population" not in neighborhood_population.columns:
         raise ValueError(
-            f"neighborhood_population is missing required columns: {missing_population_columns}"
+            "neighborhood_population is missing required column: population"
+        )
+
+    if (
+        "mcpp_neighborhood" not in neighborhood_population.columns
+        and "dispatch_neighborhood" not in neighborhood_population.columns
+    ):
+        raise ValueError(
+            "neighborhood_population must contain either "
+            "'mcpp_neighborhood' or 'dispatch_neighborhood'."
         )
 
     event_mcpp[TIME_COLUMN] = pd.to_datetime(
@@ -413,6 +550,20 @@ def make_map_figure(
     event_mcpp[LON_COL] = pd.to_numeric(
         event_mcpp[LON_COL],
         errors="coerce",
+    )
+
+    event_mcpp["event_importance_bin"] = (
+        event_mcpp["event_importance_bin"]
+        .astype("string")
+        .str.strip()
+        .str.lower()
+    )
+
+    event_mcpp["mcpp_neighborhood"] = (
+        event_mcpp["mcpp_neighborhood"]
+        .astype("string")
+        .str.strip()
+        .str.lower()
     )
 
     event_mcpp = event_mcpp[
@@ -452,7 +603,12 @@ def make_map_figure(
             past_year_start,
             latest_available_day,
         )
-        ].copy()
+    ].copy()
+
+    selected_events = past_year_events[
+        past_year_events["event_importance_bin"].isin(selected_bins)
+    ].copy()
+
     population_for_mcpp = neighborhood_population.copy()
 
     if "mcpp_neighborhood" in population_for_mcpp.columns:
@@ -540,43 +696,36 @@ def make_map_figure(
 
     base_geojson = json.loads(base_gdf.to_json())
 
-    selected_events = past_year_events[
-        past_year_events["event_importance_bin"].isin(selected_bins)
-    ].copy()
-
-    selected_counts = (
-        selected_events
-        .dropna(subset=["mcpp_neighborhood"])
-        .groupby("mcpp_neighborhood", as_index=False)
-        .agg(
-            past_year_reported_offenses=(EVENT_ID_COLUMN, "nunique"),
-            past_year_unique_reports=(ROW_ID_COLUMN, "nunique"),
-        )
+    neighborhood_total_counts = prepare_neighborhood_total_counts(
+        event_mcpp=event_mcpp,
+        unmappable_events=unmappable_events,
+        selected_bins=selected_bins,
+        start_day=past_year_start,
+        end_day=latest_available_day,
     )
 
     choropleth_gdf = base_gdf.merge(
-        selected_counts,
+        neighborhood_total_counts,
         on="mcpp_neighborhood",
         how="left",
     )
 
-    choropleth_gdf["past_year_reported_offenses"] = (
-        choropleth_gdf["past_year_reported_offenses"]
-        .fillna(0)
-        .astype(int)
-    )
+    for count_column in [
+        "past_year_mappable_events",
+        "past_year_unmappable_events",
+        "past_year_total_events",
+    ]:
+        choropleth_gdf[count_column] = (
+            choropleth_gdf[count_column]
+            .fillna(0)
+            .astype(int)
+        )
 
-    choropleth_gdf["past_year_unique_reports"] = (
-        choropleth_gdf["past_year_unique_reports"]
-        .fillna(0)
-        .astype(int)
-    )
-
-    choropleth_gdf["past_year_offenses_per_1000"] = np.where(
+    choropleth_gdf["past_year_total_events_per_1000"] = np.where(
         choropleth_gdf["population"].notna()
         & (choropleth_gdf["population"] > 0),
         (
-            choropleth_gdf["past_year_reported_offenses"]
+            choropleth_gdf["past_year_total_events"]
             / choropleth_gdf["population"]
             * 1000
         ),
@@ -589,7 +738,7 @@ def make_map_figure(
         go.Choroplethmapbox(
             geojson=base_geojson,
             locations=choropleth_gdf["plot_feature_id"],
-            z=choropleth_gdf["past_year_offenses_per_1000"],
+            z=choropleth_gdf["past_year_total_events_per_1000"],
             featureidkey="properties.plot_feature_id",
             colorscale="Viridis",
             marker={
@@ -600,32 +749,33 @@ def make_map_figure(
                 },
             },
             colorbar={
-                "title": "Reported crimes<br>per 1,000",
+                "title": "Total crime<br>events per 1,000",
                 "x": 0.98,
                 "y": 0.50,
                 "len": 0.62,
             },
             showscale=show_colorbar,
-            name="Past-year reported crimes per 1,000 residents",
+            name="Past-year total events per 1,000 residents",
             showlegend=False,
-            customdata=make_plotly_safe_customdata(
-                choropleth_gdf,
+            customdata=choropleth_gdf[
                 [
                     "mcpp_neighborhood_display",
                     "population",
-                    "past_year_offenses_per_1000",
-                    "past_year_reported_offenses",
-                    "past_year_unique_reports",
-                ],
-            ),
+                    "past_year_total_events_per_1000",
+                    "past_year_total_events",
+                    "past_year_mappable_events",
+                    "past_year_unmappable_events",
+                ]
+            ].to_numpy(),
             hovertemplate=(
                 "<b>%{customdata[0]}</b><br>"
                 f"Type of Crime: {combo_label}<br>"
                 "Population: %{customdata[1]:,.0f}<br>"
                 "<br>"
-                "Past-year reported offenses: %{customdata[3]:,}<br>"
-                "Past-year unique reports: %{customdata[4]:,}<br>"
-                "Past-year offenses per 1,000 residents: %{customdata[2]:.1f}"
+                "<b>Total past-year events: %{customdata[3]:,}</b><br>"
+                "Mappable point events: %{customdata[4]:,}<br>"
+                "Unmappable neighborhood-assigned events: %{customdata[5]:,}<br>"
+                "Total events per 1,000 residents: %{customdata[2]:.1f}"
                 "<extra></extra>"
             ),
         )
@@ -669,9 +819,10 @@ def make_map_figure(
         [
             "mcpp_neighborhood",
             "population",
-            "past_year_reported_offenses",
-            "past_year_unique_reports",
-            "past_year_offenses_per_1000",
+            "past_year_total_events",
+            "past_year_mappable_events",
+            "past_year_unmappable_events",
+            "past_year_total_events_per_1000",
         ]
     ].copy()
 
@@ -700,10 +851,16 @@ def make_map_figure(
         .fillna("Not available")
     )
 
+    if "mcpp_neighborhood_display" not in point_events.columns:
+        point_events["mcpp_neighborhood_display"] = (
+            point_events["mcpp_neighborhood"]
+            .astype("string")
+            .str.title()
+        )
+
     point_events["mcpp_neighborhood_display"] = (
-        point_events["mcpp_neighborhood"]
+        point_events["mcpp_neighborhood_display"]
         .astype("string")
-        .str.title()
         .fillna("Not available")
     )
 
@@ -718,37 +875,42 @@ def make_map_figure(
         .replace("<NA>", "Not available")
     )
 
-    point_events["past_year_reported_offenses_display"] = np.where(
-        point_events["past_year_reported_offenses"].notna(),
-        point_events["past_year_reported_offenses"]
-        .round(0)
-        .astype("Int64")
-        .astype(str),
+    point_events["past_year_total_events_display"] = np.where(
+        point_events["past_year_total_events"].notna(),
+        point_events["past_year_total_events"].round(0).astype("Int64").astype(str),
         "Not available",
     )
 
-    point_events["past_year_reported_offenses_display"] = (
-        point_events["past_year_reported_offenses_display"]
+    point_events["past_year_total_events_display"] = (
+        point_events["past_year_total_events_display"]
         .replace("<NA>", "Not available")
     )
 
-    point_events["past_year_unique_reports_display"] = np.where(
-        point_events["past_year_unique_reports"].notna(),
-        point_events["past_year_unique_reports"]
-        .round(0)
-        .astype("Int64")
-        .astype(str),
+    point_events["past_year_mappable_events_display"] = np.where(
+        point_events["past_year_mappable_events"].notna(),
+        point_events["past_year_mappable_events"].round(0).astype("Int64").astype(str),
         "Not available",
     )
 
-    point_events["past_year_unique_reports_display"] = (
-        point_events["past_year_unique_reports_display"]
+    point_events["past_year_mappable_events_display"] = (
+        point_events["past_year_mappable_events_display"]
         .replace("<NA>", "Not available")
     )
 
-    point_events["past_year_offenses_per_1000_display"] = np.where(
-        point_events["past_year_offenses_per_1000"].notna(),
-        point_events["past_year_offenses_per_1000"].round(1).astype(str),
+    point_events["past_year_unmappable_events_display"] = np.where(
+        point_events["past_year_unmappable_events"].notna(),
+        point_events["past_year_unmappable_events"].round(0).astype("Int64").astype(str),
+        "Not available",
+    )
+
+    point_events["past_year_unmappable_events_display"] = (
+        point_events["past_year_unmappable_events_display"]
+        .replace("<NA>", "Not available")
+    )
+
+    point_events["past_year_total_events_per_1000_display"] = np.where(
+        point_events["past_year_total_events_per_1000"].notna(),
+        point_events["past_year_total_events_per_1000"].round(1).astype(str),
         "Not available",
     )
 
@@ -787,9 +949,10 @@ def make_map_figure(
                         SUB_CATEGORY_COLUMN,
                         "mcpp_neighborhood_display",
                         "population_display",
-                        "past_year_reported_offenses_display",
-                        "past_year_unique_reports_display",
-                        "past_year_offenses_per_1000_display",
+                        "past_year_total_events_display",
+                        "past_year_mappable_events_display",
+                        "past_year_unmappable_events_display",
+                        "past_year_total_events_per_1000_display",
                     ],
                 ),
                 hovertemplate=(
@@ -803,9 +966,10 @@ def make_map_figure(
                     "<b>Neighborhood:</b> %{customdata[6]}<br>"
                     "<br>"
                     "<b>Population:</b> %{customdata[7]}<br>"
-                    "<b>Past-year reported offenses:</b> %{customdata[8]}<br>"
-                    "<b>Past-year unique reports:</b> %{customdata[9]}<br>"
-                    "<b>Past-year offenses per 1,000 residents:</b> %{customdata[10]}"
+                    "<b>Total past-year neighborhood events:</b> %{customdata[8]}<br>"
+                    "<b>Mappable neighborhood events:</b> %{customdata[9]}<br>"
+                    "<b>Unmappable neighborhood-assigned events:</b> %{customdata[10]}<br>"
+                    "<b>Total events per 1,000 residents:</b> %{customdata[11]}"
                     "<extra></extra>"
                 ),
             )

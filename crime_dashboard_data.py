@@ -43,6 +43,15 @@ def clean_text_column(series: pd.Series) -> pd.Series:
         .str.lower()
     )
 
+def normalize_neighborhood_name(series: pd.Series) -> pd.Series:
+    return (
+        series
+        .astype("string")
+        .str.strip()
+        .str.lower()
+        .str.replace("&", "and", regex=False)
+        .str.replace(r"\s+", " ", regex=True)
+    )
 
 def prepare_crime_snapshot(df: pd.DataFrame) -> pd.DataFrame:
     out = df.copy()
@@ -251,6 +260,117 @@ def prepare_mappable_events(df: pd.DataFrame) -> pd.DataFrame:
 
     return mappable_events.reset_index(drop=True)
 
+def prepare_unmappable_events(
+    df: pd.DataFrame,
+    mapped_event_ids: list[str] | set[str] | None = None,
+) -> pd.DataFrame:
+    required_columns = [
+        EVENT_ID_COLUMN,
+        TIME_COLUMN,
+        CATEGORY_COLUMN,
+        SUB_CATEGORY_COLUMN,
+        NEIGHBORHOOD_COLUMN,
+        "event_group",
+        "event_importance_bin",
+    ]
+
+    missing_columns = [
+        column
+        for column in required_columns
+        if column not in df.columns
+    ]
+
+    if missing_columns:
+        raise ValueError(
+            "Crime data is missing required columns for unmappable events: "
+            + ", ".join(missing_columns)
+        )
+
+    out = df.copy()
+
+    out[EVENT_ID_COLUMN] = out[EVENT_ID_COLUMN].astype("string").str.strip()
+    out[TIME_COLUMN] = pd.to_datetime(out[TIME_COLUMN], errors="coerce")
+
+    out[NEIGHBORHOOD_COLUMN] = clean_text_column(out[NEIGHBORHOOD_COLUMN])
+    out["mcpp_neighborhood"] = normalize_neighborhood_name(
+        out[NEIGHBORHOOD_COLUMN]
+    )
+
+    out["event_group"] = clean_text_column(out["event_group"])
+    out["event_importance_bin"] = clean_text_column(out["event_importance_bin"])
+
+    out = out[
+        out[EVENT_ID_COLUMN].notna()
+        & (out[EVENT_ID_COLUMN] != "")
+        & out[TIME_COLUMN].notna()
+        & out["mcpp_neighborhood"].notna()
+        & (out["mcpp_neighborhood"] != "")
+        & out["event_importance_bin"].notna()
+        & (out["event_importance_bin"] != "")
+    ].copy()
+
+    if mapped_event_ids is not None:
+        mapped_event_id_set = {
+            str(event_id).strip()
+            for event_id in mapped_event_ids
+            if pd.notna(event_id) and str(event_id).strip() != ""
+        }
+
+        out = out[
+            ~out[EVENT_ID_COLUMN].isin(mapped_event_id_set)
+        ].copy()
+
+    if LAT_COL in out.columns and LON_COL in out.columns:
+        latitude = pd.to_numeric(out[LAT_COL], errors="coerce")
+        longitude = pd.to_numeric(out[LON_COL], errors="coerce")
+
+        has_valid_seattle_coordinates = (
+            latitude.between(47.45, 47.80)
+            & longitude.between(-122.45, -122.20)
+        )
+
+        out["unmappable_reason"] = "missing or invalid coordinates"
+        out.loc[
+            has_valid_seattle_coordinates,
+            "unmappable_reason",
+        ] = "valid coordinates but no MCPP spatial match"
+
+    else:
+        out["unmappable_reason"] = "missing coordinate columns"
+
+    out = out.sort_values(TIME_COLUMN, ascending=False)
+    out = out.drop_duplicates(subset=EVENT_ID_COLUMN, keep="first")
+
+    preferred_columns = [
+        EVENT_ID_COLUMN,
+        ROW_ID_COLUMN,
+        TIME_COLUMN,
+        REPORT_TIME_COLUMN,
+        CATEGORY_COLUMN,
+        SUB_CATEGORY_COLUMN,
+        "nibrs_crime_against_category",
+        "nibrs_group_a_b",
+        "nibrs_offense_code_description",
+        "nibrs_offense_code",
+        "block_address",
+        PRECINCT_COLUMN,
+        SECTOR_COLUMN,
+        BEAT_COLUMN,
+        NEIGHBORHOOD_COLUMN,
+        "mcpp_neighborhood",
+        "event_group",
+        "event_importance_bin",
+        "unmappable_reason",
+    ]
+
+    existing_columns = [
+        column
+        for column in preferred_columns
+        if column in out.columns
+    ]
+
+    return out[existing_columns].reset_index(drop=True)
+
 
 def build_or_load_event_mcpp_lookup(
     mappable_events: pd.DataFrame,
@@ -431,6 +551,20 @@ def load_crime_dashboard_context() -> dict[str, Any]:
         event_mcpp_lookup=event_mcpp_lookup,
     )
 
+    mapped_event_ids = (
+        event_mcpp[EVENT_ID_COLUMN]
+        .dropna()
+        .astype("string")
+        .str.strip()
+        .unique()
+        .tolist()
+    )
+
+    unmappable_events = prepare_unmappable_events(
+        df=df,
+        mapped_event_ids=mapped_event_ids,
+    )
+
     neighborhood_population = load_neighborhood_population()
 
     years_observed = calculate_years_observed(valid_time)
@@ -443,6 +577,7 @@ def load_crime_dashboard_context() -> dict[str, Any]:
         "mappable_events": mappable_events,
         "event_mcpp_lookup": event_mcpp_lookup,
         "event_mcpp": event_mcpp,
+        "unmappable_events": unmappable_events,
         "neighborhood_population": neighborhood_population,
         "years_observed": years_observed,
     }
