@@ -4,6 +4,8 @@ import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
 
+from map_overlays import add_road_overlays
+
 from spd_config import (
     PAPER_BG,
     PLOTLY_MAP_STYLE,
@@ -465,6 +467,7 @@ def make_map_figure(
     point_end_date: str | None = None,
     show_colorbar: bool = False,
     point_filters: dict | None = None,
+    selected_road_overlays: list[str] | None = None,
 ) -> go.Figure:
     event_mcpp = context["event_mcpp"].copy()
     unmappable_events = context.get("unmappable_events", pd.DataFrame()).copy()
@@ -779,6 +782,11 @@ def make_map_figure(
                 "<extra></extra>"
             ),
         )
+    )
+
+    fig = add_road_overlays(
+        fig=fig,
+        selected_overlays=selected_road_overlays,
     )
 
     point_events = selected_events.copy()

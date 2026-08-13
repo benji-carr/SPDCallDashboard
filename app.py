@@ -227,8 +227,12 @@ def count_map_points(fig) -> int:
 
     for trace in fig.data:
         trace_type = str(getattr(trace, "type", "")).lower()
+        trace_mode = str(getattr(trace, "mode", "")).lower()
 
-        if trace_type in ["scattermapbox", "scattermap"]:
+        if (
+            trace_type in ["scattermapbox", "scattermap"]
+            and "markers" in trace_mode
+        ):
             lat_values = getattr(trace, "lat", None)
 
             if lat_values is not None:
@@ -620,8 +624,15 @@ def create_app() -> Dash:
         point_start_date: str,
         point_end_date: str,
         show_colorbar: bool,
+        selected_road_overlays_value: str,
     ):
         selected_bins = decode_bin_combo(selected_bin_value)
+
+        selected_road_overlays = (
+            selected_road_overlays_value.split("||")
+            if selected_road_overlays_value
+            else []
+        )
 
         fig = make_calls_map_figure(
             context=calls_context,
@@ -629,6 +640,7 @@ def create_app() -> Dash:
             point_start_date=point_start_date,
             point_end_date=point_end_date,
             show_colorbar=show_colorbar,
+            selected_road_overlays=selected_road_overlays,
         )
 
         fig.update_layout(
@@ -668,6 +680,7 @@ def create_app() -> Dash:
         point_end_date: str,
         show_colorbar: bool,
         point_filters: dict | None = None,
+        selected_road_overlays: list[str] | None = None,
     ):
         selected_categories = decode_combo(
             selected_category_value,
@@ -681,6 +694,7 @@ def create_app() -> Dash:
             point_end_date=point_end_date,
             show_colorbar=show_colorbar,
             point_filters=point_filters,
+            selected_road_overlays=selected_road_overlays,
         )
 
         fig.update_layout(
@@ -945,6 +959,37 @@ def create_app() -> Dash:
                                                     style={
                                                         "fontSize": "12px",
                                                         "lineHeight": "1.8",
+                                                    },
+                                                ),
+
+                                                html.P(
+                                                    "Map overlays",
+                                                    style={
+                                                        "margin": "8px 0 4px 0",
+                                                        "fontSize": "12px",
+                                                        "fontWeight": "bold",
+                                                        "color": "#dddddd",
+                                                    },
+                                                ),
+
+                                                dcc.Checklist(
+                                                    id="calls-road-overlay-toggle",
+                                                    options=[
+                                                        {
+                                                            "label": " I-5",
+                                                            "value": "i5",
+                                                        },
+                                                        {
+                                                            "label": " SR-99 / Aurora Ave",
+                                                            "value": "sr99",
+                                                        },
+                                                    ],
+                                                    value=["i5", "sr99"],
+                                                    className="control-sidebar",
+                                                    style={
+                                                        "fontSize": "12px",
+                                                        "lineHeight": "1.8",
+                                                        "marginBottom": "10px",
                                                     },
                                                 ),
                                             ],
@@ -1228,6 +1273,37 @@ def create_app() -> Dash:
                                                     },
                                                 ),
 
+                                                html.P(
+                                                    "Map overlays",
+                                                    style={
+                                                        "margin": "8px 0 4px 0",
+                                                        "fontSize": "12px",
+                                                        "fontWeight": "bold",
+                                                        "color": "#dddddd",
+                                                    },
+                                                ),
+
+                                                dcc.Checklist(
+                                                    id="crime-road-overlay-toggle",
+                                                    options=[
+                                                        {
+                                                            "label": " I-5",
+                                                            "value": "i5",
+                                                        },
+                                                        {
+                                                            "label": " SR-99 / Aurora Ave",
+                                                            "value": "sr99",
+                                                        },
+                                                    ],
+                                                    value=["i5", "sr99"],
+                                                    className="control-sidebar",
+                                                    style={
+                                                        "fontSize": "12px",
+                                                        "lineHeight": "1.8",
+                                                        "marginBottom": "10px",
+                                                    },
+                                                ),
+
                                                 html.Hr(
                                                     style={
                                                         "borderColor": "rgba(255,255,255,0.18)",
@@ -1453,11 +1529,13 @@ def create_app() -> Dash:
         Input("importance-bin-filter", "value"),
         Input("daily-visible-range-store", "data"),
         Input("legend-toggle", "value"),
+        Input("calls-road-overlay-toggle", "value"),
     )
     def update_calls_map_figure(
         selected_bin_value,
         range_store_data,
         legend_values,
+        selected_road_overlays,
     ):
         if legend_values is None:
             legend_values = []
@@ -1470,11 +1548,16 @@ def create_app() -> Dash:
 
         show_colorbar = "map_colorbar" in legend_values
 
+        selected_road_overlays_value = "||".join(
+            selected_road_overlays or []
+        )
+
         fig, visible_point_count = cached_calls_map_figure(
             selected_bin_value=selected_bin_value,
             point_start_date=point_start_date,
             point_end_date=point_end_date,
             show_colorbar=show_colorbar,
+            selected_road_overlays_value=selected_road_overlays_value,
         )
 
         label = (
@@ -1545,6 +1628,7 @@ def create_app() -> Dash:
         Input("crime-point-subcategory-filter", "value"),
         Input("crime-point-neighborhood-filter", "value"),
         Input("crime-point-text-filter", "value"),
+        Input("crime-road-overlay-toggle", "value"),
     )
     def update_crime_map_figure(
         selected_category_value,
@@ -1553,6 +1637,7 @@ def create_app() -> Dash:
         selected_subcategories,
         selected_neighborhoods,
         text_filter,
+        selected_road_overlays,
     ):
         if legend_values is None:
             legend_values = []
@@ -1577,6 +1662,7 @@ def create_app() -> Dash:
             point_end_date=point_end_date,
             show_colorbar=show_colorbar,
             point_filters=point_filters,
+            selected_road_overlays=selected_road_overlays,
         )
 
         graph_key = (
@@ -1585,7 +1671,8 @@ def create_app() -> Dash:
             f"{show_colorbar}|"
             f"{','.join(point_filters['offense_sub_categories'])}|"
             f"{','.join(point_filters['mcpp_neighborhoods'])}|"
-            f"{point_filters['text']}"
+            f"{point_filters['text']}|"
+            f"{','.join(selected_road_overlays or [])}"
         )
         graph = html.Div(
             children=[
@@ -1649,12 +1736,14 @@ def create_app() -> Dash:
         Input("importance-bin-filter", "value"),
         Input("daily-visible-range-store", "data"),
         Input("legend-toggle", "value"),
+        Input("calls-road-overlay-toggle", "value"),
     )
     def update_fullscreen_overlay(
         fullscreen_target,
         selected_bin_value,
         range_store_data,
         legend_values,
+        selected_road_overlays,
     ):
         if legend_values is None:
             legend_values = []
@@ -1671,11 +1760,16 @@ def create_app() -> Dash:
 
             show_colorbar = "map_colorbar" in legend_values
 
+            selected_road_overlays_value = "||".join(
+                selected_road_overlays or []
+            )
+
             fig, visible_point_count = cached_calls_map_figure(
                 selected_bin_value=selected_bin_value,
                 point_start_date=point_start_date,
                 point_end_date=point_end_date,
                 show_colorbar=show_colorbar,
+                selected_road_overlays_value=selected_road_overlays_value,
             )
 
             title = (
