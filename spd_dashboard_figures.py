@@ -879,7 +879,7 @@ def make_map_figure(
                 },
             },
             colorbar={
-                "title": "Selected crime<br>events per 1,000",
+                "title": "Selected call<br>events per 1,000",
                 "x": 0.98,
                 "y": 0.50,
                 "len": 0.62,
@@ -898,7 +898,7 @@ def make_map_figure(
             ].to_numpy(),
             hovertemplate=(
                 "<b>%{customdata[0]}</b><br>"
-                f"Type of Crime: {combo_label}<br>"
+                f"Type of Call: {combo_label}<br>"
                 "Population: %{customdata[1]:,.0f}<br>"
                 "<br>"
                 "Past-year unique CAD events: %{customdata[3]:,}<br>"
@@ -1054,8 +1054,8 @@ def make_map_figure(
                 hovertemplate=(
                     "<b>CAD Event:</b> %{customdata[0]}<br>"
                     "<b>Time:</b> %{customdata[1]}<br>"
-                    f"<b>Selected Type of Crime:</b> {combo_label}<br>"
-                    "<b>Point Type of Crime:</b> %{customdata[2]}<br>"
+                    f"<b>Selected Type of Call:</b> {combo_label}<br>"
+                    "<b>Point Type of Call:</b> %{customdata[2]}<br>"
                     "<b>Event group:</b> %{customdata[3]}<br>"
                     "<b>Priority:</b> %{customdata[4]}<br>"
                     "<br>"
@@ -1073,8 +1073,8 @@ def make_map_figure(
         )
 
     fig.update_layout(
-        title=dict(  # Figure title: shortened main title with Type of Crime moved into subtitle
-            text=f"Crimes committed Per 1,000 Residents In the Past Year<br><sup>Type of Crime: {combo_label}</sup>",
+        title=dict(
+            text=f"Calls to SPD Per 1,000 Residents In the Past Year<br><sup>Type of Call: {combo_label}</sup>",
             x=0.01,
             xanchor="left",
         ),

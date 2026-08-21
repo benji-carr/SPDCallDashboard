@@ -6,4 +6,3 @@ This application is a collection of dashboards that aim to provide information o
 
 TODO: 
 Complete Notebooks on Time Series Forecasting (Fine tune SARIMA with auto ARIMA, find Exogenous vars. After finding best SARIMAX move on to FMs, Deep Learning, and/or sequential gradient boosting)
-Adjust the title of the call dashboard's map
