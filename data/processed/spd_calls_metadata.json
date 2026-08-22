@@ -1,7 +1,7 @@
 {
-  "refreshed_at_utc": "2026-08-21T11:46:01.887826+00:00",
-  "source_start_date": "2025-08-17",
-  "row_count": 602700,
+  "refreshed_at_utc": "2026-08-22T11:40:29.342561+00:00",
+  "source_start_date": "2025-08-18",
+  "row_count": 602736,
   "columns": [
     "cad_event_number",
     "cad_event_original_time_queued",
