@@ -94,6 +94,33 @@ FEATURE_SETS = {
         "is_christmas_day",
     ],
 
+    "weekly_cycle": [
+        "day_of_week_sin",
+        "day_of_week_cos",
+    ],
+
+    "annual_cycle": [
+        "week_of_year_sin",
+        "week_of_year_cos",
+    ],
+
+    "monthly_cycle": [
+        "month_sin",
+        "month_cos",
+    ],
+
+    "weekend_only": [
+        "is_weekend",
+    ],
+
+    "weekly_annual_cycle": [
+        "day_of_week_sin",
+        "day_of_week_cos",
+        "week_of_year_sin",
+        "week_of_year_cos",
+    ],
+
+
     "full_19": CALENDAR_FEATURES,
 }
 
