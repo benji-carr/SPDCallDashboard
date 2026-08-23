@@ -120,6 +120,36 @@ FEATURE_SETS = {
         "week_of_year_cos",
     ],
 
+    "weekend_weekly": [
+        "is_weekend",
+        "day_of_week_sin",
+        "day_of_week_cos",
+    ],
+
+    "weekend_annual": [
+        "is_weekend",
+        "week_of_year_sin",
+        "week_of_year_cos",
+    ],
+
+    "weekend_monthly": [
+        "is_weekend",
+        "month_sin",
+        "month_cos",
+    ],
+
+    "weekend_weekly_annual": [
+        "is_weekend",
+        "day_of_week_sin",
+        "day_of_week_cos",
+        "week_of_year_sin",
+        "week_of_year_cos",
+    ],
+
+    "monthly_cycle": [
+        "month_sin",
+        "month_cos",
+    ],
 
     "full_19": CALENDAR_FEATURES,
 }
