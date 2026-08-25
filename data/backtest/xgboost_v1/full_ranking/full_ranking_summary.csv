@@ -1,0 +1,2 @@
+n_days,mean_absolute_rank_error,median_daily_absolute_rank_error,mean_pct_within_1_rank,mean_pct_within_2_ranks,mean_pct_within_3_ranks,mean_pct_within_5_ranks,mean_spearman,mean_kendall_tau
+360,4.807662835249043,3.5,27.092911877394634,39.57375478927203,50.09578544061302,66.51819923371647,0.922427293638343,0.7741681790683604

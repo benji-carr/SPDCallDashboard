@@ -1,0 +1,11 @@
+,value
+unique_downloaded_events,2830
+event_day_rows_after_asof_filter,2814
+mapped_event_day_rows,1459
+unmapped_event_day_rows,1366
+mapped_unique_events,1242
+updated_after_forecast_share,0.5750514050719671
+attendance_missing_share,0.05483207676490747
+panel_rows,1798
+panel_min_date,2026-07-01 00:00:00
+panel_max_date,2026-07-31 00:00:00
