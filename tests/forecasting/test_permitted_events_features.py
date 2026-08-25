@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from permitted_events_features import (
+from forecasting.features.permitted_events import (
     add_attendance_features,
     aggregate_permit_features,
     build_complete_permit_panel,

@@ -8,7 +8,7 @@ from shapely.geometry import (
     Polygon,
 )
 
-from predicthq_backtest_data import (
+from forecasting.features.predicthq import (
     ATTENDED_CATEGORIES,
     PredictHQDataError,
     aggregate_predicthq_features,

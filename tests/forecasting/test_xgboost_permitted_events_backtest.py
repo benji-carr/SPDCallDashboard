@@ -1,11 +1,11 @@
 import pandas as pd
 import pytest
 
-from xgboost_features import (
+from forecasting.features.xgboost import (
     XGB_FEATURE_SETS,
     merge_external_features,
 )
-from xgboost_permit_backtest import (
+from forecasting.backtests.xgboost_permitted_events import (
     BASELINE_EXPERIMENT_NAME,
     BASELINE_NUMERIC_FEATURES,
     PERMIT_XGB_FEATURE_SETS,

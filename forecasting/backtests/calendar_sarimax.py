@@ -23,7 +23,7 @@ from statsmodels.tsa.statespace.sarimax import (
     SARIMAX,
 )
 
-from sarima_backtest import (
+from forecasting.backtests.sarima import (
     BacktestError,
     get_neighborhood_series,
     evaluate_forecast,

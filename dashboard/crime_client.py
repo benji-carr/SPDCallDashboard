@@ -2,7 +2,9 @@ from typing import Any
 
 import requests
 
-from crime_query import build_crime_query_params
+from dashboard.crime_query import (
+    build_crime_query_params,
+)
 
 
 CRIME_DATA_ENDPOINT = ("https://data.seattle.gov/resource/tazs-3rd5.json")

@@ -3,8 +3,12 @@ import argparse
 
 import pandas as pd
 
-from sarima_backtest import (
+from forecasting.backtests.sarima import (
     run_all_baseline_backtests,
+)
+from forecasting.paths import (
+    SARIMA_BACKTEST_DIR,
+    TARGET_PANEL_5Y_PATH,
 )
 
 
@@ -203,8 +207,8 @@ def main():
     parser.add_argument(
         "--output-dir",
         type=str,
-        default=(
-            "data/backtest/azure_v2"
+        default=str(
+            SARIMA_BACKTEST_DIR
         ),
     )
 
@@ -215,7 +219,7 @@ def main():
     # ----------------------------------------------
 
     target_path = Path(
-        "data/target_panel_5y.parquet"
+        TARGET_PANEL_5Y_PATH
     )
 
     target_panel = pd.read_parquet(

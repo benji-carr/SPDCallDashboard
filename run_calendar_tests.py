@@ -7,14 +7,21 @@ from pathlib import Path
 
 import pandas as pd
 
-from calendar_features import (
+from forecasting.features.calendar import (
     FEATURE_SETS,
     save_calendar_features,
 )
 
-from calendar_sarimax_backtest import (
+from forecasting.backtests.calendar_sarimax import (
     run_calendar_backtests,
     compare_to_baseline,
+)
+from forecasting.paths import (
+    BACKTEST_DIR,
+    CALENDAR_FEATURES_PATH,
+    SARIMA_BACKTEST_DIR,
+    SARIMAX_CALENDAR_BACKTEST_DIR,
+    TARGET_PANEL_5Y_PATH,
 )
 
 
@@ -24,14 +31,12 @@ from calendar_sarimax_backtest import (
 
 ROOT = Path(__file__).resolve().parent
 
-DATA_DIR = ROOT / "data"
-
 TARGET_PANEL_PATH = (
-    DATA_DIR / "target_panel_5y.parquet"
+    TARGET_PANEL_5Y_PATH
 )
 
 BASELINE_DIR = (
-    DATA_DIR / "backtest" / "azure_v2"
+    SARIMA_BACKTEST_DIR
 )
 
 BASELINE_ORDERS_PATH = (
@@ -45,13 +50,11 @@ BASELINE_METRICS_PATH = (
 )
 
 CALENDAR_PATH = (
-    DATA_DIR / "calendar_features.parquet"
+    CALENDAR_FEATURES_PATH
 )
 
 CALENDAR_OUTPUT_ROOT = (
-    DATA_DIR
-    / "backtest"
-    / "calendar_sarimax"
+    SARIMAX_CALENDAR_BACKTEST_DIR
 )
 
 
@@ -809,8 +812,7 @@ def main():
 
     # Save only for audit/reproducibility.
     audit_fold_path = (
-        DATA_DIR
-        / "backtest"
+        BACKTEST_DIR
         / "generated_backtest_folds.parquet"
     )
 
