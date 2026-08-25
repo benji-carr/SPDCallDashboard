@@ -1,0 +1,11 @@
+,value
+raw_permit_rows,2018
+modeling_permit_rows,1889
+excluded_permit_rows,129
+event_day_rows_before_geography,3251
+mapped_event_day_rows,4160
+unique_modeled_permits,1832
+unmapped_source_neighborhoods,6
+feature_rows_with_activity,3608
+feature_min_date,2019-01-01 00:00:00
+feature_max_date,2024-12-31 00:00:00
