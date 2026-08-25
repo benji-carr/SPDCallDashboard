@@ -639,7 +639,11 @@ def create_app() -> Dash:
 
         fig.update_layout(
             autosize=True,
+            # Keep the user's zoom and pan position when the map updates.
             uirevision="preserve-calls-map-camera",
+            # Keep legend selections during ordinary map updates,
+            # but reset them when the top-level crime-type dropdown changes.
+            legend_uirevision=f"calls-map-legend-{selected_bin_value}",
         )
 
         visible_point_count = count_map_points(fig)
