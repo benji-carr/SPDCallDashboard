@@ -28,11 +28,11 @@ jobs:
 
       - name: Refresh SPD calls data
         run: |
-          python refresh_data.py
+          python -m scripts.dashboard.refresh_spd_data
 
       - name: Refresh SPD crime data
         run: |
-          python refresh_crime_data.py
+          python -m scripts.dashboard.refresh_crime_data
 
       - name: Remove generated geography lookup caches
         run: |
@@ -41,12 +41,12 @@ jobs:
 
       - name: Rebuild dashboard contexts
         run: |
-          python -c "from spd_dashboard_data import load_dashboard_context; load_dashboard_context(); print('Calls context loaded')"
-          python -c "from crime_dashboard_data import load_crime_dashboard_context; load_crime_dashboard_context(); print('Crime context loaded')"
+          python -c "from dashboard.spd_dashboard_data import load_dashboard_context; load_dashboard_context(); print('Calls context loaded')"
+          python -c "from dashboard.crime_dashboard_data import load_crime_dashboard_context; load_crime_dashboard_context(); print('Crime context loaded')"
 
       - name: Run smoke tests
         run: |
-          python smoke_test_dashboard.py
+          python -m scripts.dashboard.smoke_check
 
       - name: Commit refreshed data
         run: |

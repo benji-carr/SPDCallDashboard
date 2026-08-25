@@ -95,7 +95,9 @@ def spd_calls_to_dataframe(
 
 
 if __name__ == "__main__":
-    from spd_client import fetch_spd_call_page
+    from dashboard.spd_client import (
+        fetch_spd_call_page,
+    )
 
     records = fetch_spd_call_page(
         start_date="2025-01-01",

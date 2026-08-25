@@ -2,7 +2,9 @@ import itertools
 
 import pandas as pd
 
-from spd_config import TARGET_IMPORTANCE_BINS
+from dashboard.spd_config import (
+    TARGET_IMPORTANCE_BINS,
+)
 
 
 VIOLENT_OR_PERSON_CRIME_GROUPS = [

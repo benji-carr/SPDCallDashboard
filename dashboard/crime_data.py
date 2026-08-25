@@ -2,7 +2,9 @@ from typing import Any
 
 import pandas as pd
 
-from crime_query import CRIME_COLUMNS
+from dashboard.crime_query import (
+    CRIME_COLUMNS,
+)
 
 
 def crime_records_to_dataframe(
@@ -79,7 +81,9 @@ def crime_records_to_dataframe(
 
 
 if __name__ == "__main__":
-    from crime_client import fetch_crime_page
+    from dashboard.crime_client import (
+        fetch_crime_page,
+    )
 
     records = fetch_crime_page(
         start_date="2025-01-01",

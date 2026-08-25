@@ -1,6 +1,10 @@
-from spd_config import TARGET_IMPORTANCE_BINS
-from spd_dashboard_data import load_dashboard_context
-from spd_dashboard_figures import (
+from dashboard.spd_config import (
+    TARGET_IMPORTANCE_BINS,
+)
+from dashboard.spd_dashboard_data import (
+    load_dashboard_context,
+)
+from dashboard.spd_dashboard_figures import (
     make_daily_figure,
     make_map_figure,
     make_volume_response_scatter,

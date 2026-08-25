@@ -4,15 +4,16 @@ from typing import Any
 import geopandas as gpd
 import pandas as pd
 
-from spd_config import (
+from dashboard.spd_config import (
     DATA_PROCESSED_DIR,
     GEO_PROCESSED_DIR,
     GEO_EXTERNAL_DIR,
     MCPP_GEOJSON_URL,
     POPULATION_PATH,
 )
-
-from crime_snapshot import load_crime_snapshot
+from dashboard.crime_snapshot import (
+    load_crime_snapshot,
+)
 
 
 CRIME_OUTPUT_DIR = DATA_PROCESSED_DIR / "crime"

@@ -1,7 +1,7 @@
 from pathlib import Path
 
 
-PROJECT_ROOT = Path(__file__).resolve().parent
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
 DATA_PROCESSED_DIR = PROJECT_ROOT / "data" / "processed"
 DATA_EXTERNAL_DIR = PROJECT_ROOT / "data" / "external"

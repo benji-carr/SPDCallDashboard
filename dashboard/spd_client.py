@@ -2,7 +2,9 @@ from typing import Any
 
 import requests
 
-from spd_query import build_spd_call_query_params
+from dashboard.spd_query import (
+    build_spd_call_query_params,
+)
 
 
 SPD_CALL_ENDPOINT = (

@@ -2,8 +2,12 @@ from typing import Any
 
 import pandas as pd
 
-from crime_client import fetch_crime_page
-from crime_data import crime_records_to_dataframe
+from dashboard.crime_client import (
+    fetch_crime_page,
+)
+from dashboard.crime_data import (
+    crime_records_to_dataframe,
+)
 
 
 def load_crime_dataset(

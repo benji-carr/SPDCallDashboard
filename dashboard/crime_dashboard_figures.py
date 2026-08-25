@@ -4,15 +4,14 @@ import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
 
-from spd_config import (
+from dashboard.spd_config import (
     PAPER_BG,
     PLOTLY_MAP_STYLE,
     PLOTLY_SEATTLE_CENTER,
     PLOTLY_TEMPLATE,
     PLOT_BG,
 )
-
-from crime_dashboard_data import (
+from dashboard.crime_dashboard_data import (
     EVENT_ID_COLUMN,
     ROW_ID_COLUMN,
     TIME_COLUMN,
@@ -1063,7 +1062,9 @@ def apply_point_filters(
 
 
 if __name__ == "__main__":
-    from crime_dashboard_data import load_crime_dashboard_context
+    from dashboard.crime_dashboard_data import (
+        load_crime_dashboard_context,
+    )
 
     context = load_crime_dashboard_context()
 

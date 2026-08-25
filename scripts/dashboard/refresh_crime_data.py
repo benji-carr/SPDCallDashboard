@@ -4,8 +4,13 @@ from pathlib import Path
 
 import pandas as pd
 
-from crime_service import load_crime_dataset
-from crime_snapshot import load_crime_snapshot, save_crime_snapshot
+from dashboard.crime_service import (
+    load_crime_dataset,
+)
+from dashboard.crime_snapshot import (
+    load_crime_snapshot,
+    save_crime_snapshot,
+)
 
 
 CRIME_OUTPUT_DIR = Path("data/processed/crime")

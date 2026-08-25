@@ -5,25 +5,31 @@ import pandas as pd
 from dash import Dash, Input, Output, State, ctx, dcc, html
 from dash.exceptions import PreventUpdate
 
-from spd_config import TIME_COLUMN as CALL_TIME_COLUMN
-from spd_event_bins import (
+from dashboard.spd_config import (
+    TIME_COLUMN as CALL_TIME_COLUMN,
+)
+
+from dashboard.spd_event_bins import (
     decode_bin_combo,
     make_bin_dropdown_options,
 )
-from spd_dashboard_data import (
+
+from dashboard.spd_dashboard_data import (
     load_dashboard_context as load_calls_dashboard_context,
 )
-from spd_dashboard_figures import (
+
+from dashboard.spd_dashboard_figures import (
     make_daily_figure as make_calls_daily_figure,
     make_map_figure as make_calls_map_figure,
     make_volume_response_scatter as make_calls_scatter_figure,
 )
 
-from crime_dashboard_data import (
+from dashboard.crime_dashboard_data import (
     TIME_COLUMN as CRIME_TIME_COLUMN,
     load_crime_dashboard_context,
 )
-from crime_dashboard_figures import (
+
+from dashboard.crime_dashboard_figures import (
     TARGET_CRIME_CATEGORIES,
     make_daily_figure as make_crime_daily_figure,
     make_map_figure as make_crime_map_figure,

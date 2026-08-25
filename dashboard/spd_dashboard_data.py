@@ -4,7 +4,7 @@ from typing import Any
 import geopandas as gpd
 import pandas as pd
 
-from spd_config import (
+from dashboard.spd_config import (
     PROJECT_ROOT,
     DATA_PROCESSED_DIR,
     DATA_EXTERNAL_DIR,
@@ -19,8 +19,12 @@ from spd_config import (
     LAT_COL,
     LON_COL,
 )
-from spd_event_bins import ensure_event_importance_bin
-from spd_snapshot import load_spd_call_snapshot
+from dashboard.spd_event_bins import (
+    ensure_event_importance_bin,
+)
+from dashboard.spd_snapshot import (
+    load_spd_call_snapshot,
+)
 
 
 def clean_text_column(series: pd.Series) -> pd.Series:

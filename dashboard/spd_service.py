@@ -2,8 +2,12 @@ from typing import Any
 
 import pandas as pd
 
-from spd_client import fetch_spd_call_page
-from spd_data import spd_calls_to_dataframe
+from dashboard.spd_client import (
+    fetch_spd_call_page,
+)
+from dashboard.spd_data import (
+    spd_calls_to_dataframe,
+)
 
 
 def load_spd_call_dataset(

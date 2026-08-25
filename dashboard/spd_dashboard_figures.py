@@ -4,7 +4,7 @@ import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
 
-from spd_config import (
+from dashboard.spd_config import (
     ARRIVAL_TIME_COLUMN,
     EVENT_ID_COLUMN,
     LAT_COL,
@@ -18,7 +18,9 @@ from spd_config import (
     TARGET_IMPORTANCE_BINS,
     TIME_COLUMN,
 )
-from spd_event_bins import make_bin_combo_label
+from dashboard.spd_event_bins import (
+    make_bin_combo_label,
+)
 
 
 BIN_COLOR_MAP = {
@@ -1113,7 +1115,9 @@ def make_map_figure(
 
 
 if __name__ == "__main__":
-    from spd_dashboard_data import load_dashboard_context
+    from dashboard.spd_dashboard_data import (
+        load_dashboard_context,
+    )
 
     context = load_dashboard_context()
 

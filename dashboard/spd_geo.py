@@ -88,7 +88,9 @@ def aggregate_spd_calls_by_neighborhood(
     return summary_df
 
 if __name__ == "__main__":
-    from spd_snapshot import load_spd_call_snapshot
+    from dashboard.spd_snapshot import (
+        load_spd_call_snapshot,
+    )
 
     df, metadata = load_spd_call_snapshot("data/processed")
 

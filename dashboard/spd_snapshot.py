@@ -78,7 +78,9 @@ def load_spd_call_snapshot(
 
 
 if __name__ == "__main__":
-    from spd_service import load_spd_call_dataset
+    from dashboard.spd_service import (
+        load_spd_call_dataset,
+    )
 
     df = load_spd_call_dataset(
         start_date="2025-01-01",

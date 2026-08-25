@@ -61,7 +61,9 @@ def summarize_spd_calls(df: pd.DataFrame) -> dict[str, Any]:
     return result
 
 if __name__ == "__main__":
-    from spd_snapshot import load_spd_call_snapshot
+    from dashboard.spd_snapshot import (
+        load_spd_call_snapshot,
+    )
 
     df, metadata = load_spd_call_snapshot("data/processed")
 
