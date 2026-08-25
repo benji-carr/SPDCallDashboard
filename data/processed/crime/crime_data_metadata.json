@@ -1,8 +1,8 @@
 {
-  "refreshed_at_utc": "2026-08-25T11:48:45.031695+00:00",
-  "source_start_date": "2025-08-23",
+  "refreshed_at_utc": "2026-08-25T23:36:31.821897+00:00",
+  "source_start_date": "2025-08-24",
   "source_date_column": "offense_date",
-  "row_count": 76217,
+  "row_count": 76257,
   "columns": [
     "report_number",
     "report_date_time",
