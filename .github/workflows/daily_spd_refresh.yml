@@ -7,14 +7,28 @@ on:
 
 permissions:
   contents: write
+  pull-requests: write
+
+concurrency:
+  group: daily-spd-dashboard-refresh
+  cancel-in-progress: false
 
 jobs:
   refresh-data:
     runs-on: ubuntu-latest
 
+    env:
+      REFRESH_BRANCH: automation/daily-data-refresh-${{ github.run_id }}
+
     steps:
-      - name: Check out repository
+      - name: Check out main
         uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Create refresh branch
+        run: |
+          git switch -c "$REFRESH_BRANCH"
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -49,6 +63,7 @@ jobs:
           python -m scripts.dashboard.smoke_check
 
       - name: Commit refreshed data
+        id: commit_refresh
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
@@ -64,8 +79,34 @@ jobs:
 
           git status --short
 
-          git diff --cached --quiet || git commit -m "Refresh dashboard data"
+          if git diff --cached --quiet; then
+            echo "No refreshed data changes to commit."
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            git commit -m "Refresh dashboard data"
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
 
-      - name: Push refreshed data
+      - name: Push refresh branch
+        if: steps.commit_refresh.outputs.changed == 'true'
         run: |
-          git push
+          git push --set-upstream origin "$REFRESH_BRANCH"
+
+      - name: Open and merge refresh pull request
+        if: steps.commit_refresh.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          pr_url="$(
+            gh pr create \
+              --base main \
+              --head "$REFRESH_BRANCH" \
+              --title "Refresh dashboard data" \
+              --body "Automated daily refresh of the SPD calls and crime dashboard datasets."
+          )"
+
+          echo "Created pull request: $pr_url"
+
+          gh pr merge "$pr_url" \
+            --squash \
+            --delete-branch
