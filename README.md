@@ -21,4 +21,7 @@ python -m forecasting.evaluation.full_ranking \
 ```
 
 TODO: 
-Complete Notebooks on Time Series Forecasting (Fine tune SARIMA with auto ARIMA, find Exogenous vars. After finding best SARIMAX move on to FMs, Deep Learning, and/or sequential gradient boosting)
+- Deploy Sequential Gradient Boosting model to predict call volume and volume ranking by neighborhood.
+- Connect cartodb map API key
+- Add descriptive pages for each dashboard
+
