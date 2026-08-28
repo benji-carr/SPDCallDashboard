@@ -22,6 +22,5 @@ python -m forecasting.evaluation.full_ranking \
 
 TODO: 
 - Deploy Sequential Gradient Boosting model to predict call volume and volume ranking by neighborhood.
-- Connect cartodb map API key
 - Add descriptive pages for each dashboard
 
