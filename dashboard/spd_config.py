@@ -1,7 +1,10 @@
+import os
 from pathlib import Path
 
+from dotenv import load_dotenv
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
+load_dotenv(PROJECT_ROOT / ".env")
 
 DATA_PROCESSED_DIR = PROJECT_ROOT / "data" / "processed"
 DATA_EXTERNAL_DIR = PROJECT_ROOT / "data" / "external"
@@ -26,7 +29,19 @@ PLOTLY_SEATTLE_CENTER = {
     "lon": -122.3321,
 }
 
-PLOTLY_MAP_STYLE = "carto-darkmatter"
+CARTO_BASEMAP_API_KEY = os.getenv(
+    "CARTO_BASEMAP_API_KEY",
+    "",
+).strip()
+
+if CARTO_BASEMAP_API_KEY:
+    PLOTLY_MAP_STYLE = (
+        "https://basemaps.cartocdn.com/gl/"
+        "dark-matter-gl-style/style.json"
+        f"?key={CARTO_BASEMAP_API_KEY}"
+    )
+else:
+    PLOTLY_MAP_STYLE = "open-street-map"
 
 TARGET_IMPORTANCE_BINS = [
     "property/nonviolent",
