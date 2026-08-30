@@ -71,15 +71,10 @@ def get_dataset_relative_daily_window(data: pd.DataFrame) -> dict:
     earliest_available_day = valid_dates.min().normalize()
 
     earliest_analysis_day = earliest_available_day + pd.Timedelta(days=1)
-    past_year_start = latest_available_day - pd.Timedelta(days=364)
-
-    plot_start_day = max(
-        earliest_analysis_day,
-        past_year_start,
-    )
+    plot_start_day = earliest_analysis_day
 
     plot_end_day = latest_available_day
-    initial_view_start = latest_available_day - pd.Timedelta(days=29)
+    initial_view_start = latest_available_day - pd.Timedelta(days=1)
 
     if initial_view_start < plot_start_day:
         initial_view_start = plot_start_day
@@ -272,6 +267,35 @@ def make_daily_figure(
                 window["initial_view_start"],
                 window["plot_end_day"],
             ],
+            rangeselector=dict(
+                x=0.01,
+                xanchor="left",
+                y=1,
+                yanchor="top",
+                bgcolor="rgba(17, 17, 17, 0.85)",
+                activecolor="rgba(255,255,255,0.18)",
+                bordercolor="rgba(255,255,255,0.15)",
+                borderwidth=1,
+                font=dict(size=10),
+                buttons=[
+                    dict(
+                        count=6,
+                        label="1W",
+                        step="day",
+                        stepmode="backward",
+                    ),
+                    dict(
+                        count=29,
+                        label="1M",
+                        step="day",
+                        stepmode="backward",
+                    ),
+                    dict(
+                        label="1Y",
+                        step="all",
+                    ),
+                ],
+            ),
             rangeslider=dict(
                 visible=True,
                 thickness=0.08,
@@ -288,32 +312,12 @@ def make_daily_figure(
         margin={
             "l": 70,
             "r": 25,
-            "t": 58,
+            "t": 84,
             "b": 45,
         },
         hovermode="x unified",
         legend_title_text="Metric",
         showlegend=False,
-    )
-
-    fig.add_annotation(
-        text=(
-            "Initial view shows latest 30 days; "
-            "range slider covers dashboard data window."
-        ),
-        xref="paper",
-        yref="paper",
-        x=0.01,
-        y=0.98,
-        showarrow=False,
-        align="left",
-        font=dict(
-            size=10,
-            color="#bbbbbb",
-        ),
-        bgcolor="rgba(0,0,0,0.35)",
-        bordercolor="rgba(255,255,255,0.15)",
-        borderwidth=1,
     )
 
     return fig
@@ -797,7 +801,7 @@ def make_map_figure(
             ].copy()
 
     else:
-        point_start = latest_available_day - pd.Timedelta(days=29)
+        point_start = latest_available_day
         point_end = latest_available_day
 
         point_events = point_events[
