@@ -1,166 +1,129 @@
-Dashboard Overview
-The main purpose of the crime and SPD calls dashboards was to give Seattle residents greater insight into where crimes were occuring and how often they occur. The data is pulled from The City of Seattle's Socrata API, so it of course has limitations to how up to date and descriptive it is (one of the most important impacts of this is the redaction of sex crimes and some violent crimes' locations). Nevertheless the dashboards both aim to inform the public by displaying the following
+## Application Layer:
 
-Maps:
+The application layer is primarily controlled by `app.py`. This script takes the contexts and figure building functions from the previous layers and connects them to the Dash user interface. This means that `app.py` does relatively little data processing itself; its main responsibilities are page layouts, routing, storing user selections, and determining when figures need to be rebuilt.
 
-Shading:
-Both dashboards feature a chloropleth map with shading that indicates the amount of events in each neighborhood. This shading is set to count events in the entire past year regardless of the interactive settings. Viewers of the map can take one look and see which neighborhoods have had the most events as of late. 
+### create_app():
 
-Points:
-Another functionality of the map is the event points. By default events that have occured in the last 7 days (of the available data) are shown as points colored to indicate the type of event (for the crime dashboard the types are: other (includes drug and sex offences), property crime, violent crime, for the calls dashboard the types are: drug-related, property/nonviolent, violent/person crime). Viewers of the points can observe which crimes are more prevelant, which crimes tend to occur in specific areas, and identify streets and highways with high volumes of events. 
+`create_app()` initializes the Dash app, loads the calls and crime dashboard contexts, creates the options used by dropdowns, finds the default map date ranges, and defines the cached figure functions, page layouts, and callbacks used by the app. Both dashboard contexts are loaded once when the application is created rather than being rebuilt every time a callback runs.
 
-Hover Data: 
-Upon hovering over a neighborhood's shaded region the following details are displayed: type of events selected, population of the neighborhood, number of unique events in the last year, number of mappable events (crime dashboard only), number of unmappable events (crime dashboard only), number of unique events in the last year per 1,000 residents, and median response time (calls dashboard only)
+Several figure building functions inside `create_app()` use `lru_cache`. This allows previously generated figures to be reused when the same combination of category, date range, and legend settings is requested again rather than performing the same work repeatedly.
 
-For points, hover data displays the following: unique ID, report number (crime dashboard only), event time, report time (crime dashboard only), overall point selection (crime dashboard only, this behavior will be deprecated), point type, point subgroup, call priority (calls dashboard only), initial call type (calls dashboard only), final call type (calls dashboard only), and the following which are present on hovering over neighborhods as well (it could be argued that the following do not need to be displayed upon hovering over points): neigborhood, population, number of unique events in the last year, number of mappable events (crime dashboard only), number of unmappable events (crime dashboard only), number of unique events in the last year per 1,000 residents, and median response time (calls dashboard only)
+### Page Layouts:
 
-The hover data is designed to display as much data as possible without introducing confusion or visual clutter. 
+There are three main page-building functions:
 
-Time plots: 
+* `make_landing_page()` builds the home page and links users to the two dashboards.
+* `make_calls_page()` builds the calls dashboard and its map, time series, scatter plot, controls, and fullscreen elements.
+* `make_crime_page()` builds the crime dashboard and its map, time series, and controls.
 
-Both dashboards feature a time plot that shows the number of unique events that have occured each day. By default the last 7 days are selected but there is a 365 day window that can be accessed via the interactive element of the chart. The time plots feature a 7-day moving average to help visualize the longer term patterns in the data(the event volume over time has weekly seasonality that makes the daily series look quite noisy). The time plots update to display specific types of events' volumes once the user selects what types are displayed via the top-level drop down (selecting multiple types at a time does not allow for direct comprison of the volumes but instead aggregates them). 
+The root layout contains a `dcc.Location` component and a `page-content` container. The `display_page()` callback reads the URL and decides which page-building function should populate the container. `/crime` opens the crime dashboard, `/calls` opens the calls dashboard, and other paths return the landing page.
 
-The interactive element to the time series plots not only controls the data displayed in the time plots but also determines what points are displayed on the map. This feature allows users to select specific time ranges they want to view on both the time plot and map. 
+### Date Range Stores:
 
-Scatter plot (calls dashboard only):
+Both dashboards use a `dcc.Store` to keep track of the visible range of the daily time series. When the user zooms, pans, or uses the range slider, the `relayoutData` from the Plotly figure is passed through `extract_daily_visible_date_range()` and stored. The map callback then reads the same stored dates and uses them as the point start and end dates. This is what links the time series controls to the map points.
 
-While the other plots emphasize the users ability to seek out information, the scatter plot in the calls dashboard aims to demonstrate a specific pattern in the data. There seems to be a negative association between the volume of calls and the median response time in Seattle neighborhoods, i.e. nieghborhoods have lower response times when they have higher call volumes. This relationship is evidence of SPD allocating their resources intentionally; but in historical data some neighborhoods break this rule. On the scatter plot there are two dashed lines displayed, one for the median call volume, and another for the median response time across all nieghborhoods. Viewers can see that most neighborhoods with above median call volumes have below median response times, but there are some nieghborhoods that have both above median call volumes and above median response times. To more effectively reveal this issue the points are sized based on the product of their median response time and call volume, making points with larger values in both variables appear much larger than the rest. To make a long story short: when the points are larger, and far beyond the median lines, those neighborhoods are having issues with larger volumes of calls and no increased police presence to meet that demand. 
+### Figure Update Callbacks:
 
-Broad Architecture
+The calls dashboard has callbacks for the daily figure, scatter plot, and map. Changing the top-level type-of-crime dropdown causes the corresponding figures to be rebuilt using the new selected bins. The map additionally responds to the stored date range and whether the map color scale is enabled.
 
-                    DATA REFRESH FLOW
+The crime dashboard follows the same pattern for the daily figure and map. The crime map has additional point-only filters for offense sub-category, neighborhood, and text searches. These filters are passed to the visualization layer and do not change the neighborhood choropleth totals.
 
-               Seattle Open Data / Socrata
-                           │
-                           ▼
-                       *_query.py
-                           │
-                           ▼
-                       *_client.py
-                           │
-                           ▼
-                       *_data.py
-                           │
-                           ▼
-                       *_service.py
-                           │
-                           ▼
-                scripts/dashboard/refresh_*.py
-                           │
-                           ▼
-                   data/processed/*.parquet
-                       + metadata JSON
-                           │
-                           │
-                           ▼
-        ──────────────────────────────────────────
-                           │
-                           │
-                           ▼
-                   *_dashboard_data.py
-                           │
-                           ▼
-                   *_dashboard_figures.py
-                           │
-                           ▼
-                        app.py
-                           │
-                           ▼
-                     Dash / Browser
-            
-                    APP RUNTIME FLOW
+The calls dashboard also contains callbacks for the fullscreen functionality. The selected figure is stored in `fullscreen-figure-store`, then the corresponding cached map, daily figure, or scatter plot is displayed in the fullscreen overlay.
 
+## Automated Refresh Pipeline:
 
-Data Acquisition Layer
+The rolling snapshot layer described earlier is run automatically through `.github/workflows/daily_spd_refresh.yml`. The workflow can be manually triggered but is also scheduled to run once every day.
 
-This layer controls the process of getting data from the API into a python ready format. The scripts are divided into _query.py, _client.py, _data.py, and _service.py. The seperation of the scripts means when there is a change that breaks a specific part of the process we don't have to dig through a deluge of functions in one script. 
+The workflow performs the following steps:
 
-_query.py:
-This module controls the SoQL query parameters we send the API. The scripts take the start date, limit, offset, and date column as parameters and build the query by controlling the $select, $where, $order, $limit, and $offset in the SoQL. 
+```text
+Check out repository
+        |
+        ▼
+Set up Python and install requirements
+        |
+        ▼
+Refresh SPD calls snapshot
+        |
+        ▼
+Refresh crime snapshot
+        |
+        ▼
+Remove old geography lookup caches
+        |
+        ▼
+Rebuild both dashboard contexts
+        |
+        ▼
+Run dashboard smoke test
+        |
+        ▼
+Commit refreshed data files
+        |
+        ▼
+Push changes to the repository
+```
 
-Note: Changes to the dataset schema in either data source will cause this function (build_*_query_params) to break. 
+The geography lookup files are removed before rebuilding the dashboard contexts so the lookup between events and MCPP neighborhood polygons is recreated using the newest snapshot data.
 
-_client.py:
-This module starts off by using _query.py then using those parameters returned to make a GET request to the current endpoint(s). This module only fetches one page worth of data, of which there are many. 
+After the contexts are rebuilt the workflow runs `scripts/dashboard/smoke_check.py`. The smoke check loads the calls dashboard context and attempts to build the daily figure, scatter plot, and map. The check fails if any of the figures contain no traces.
 
-Note: Changes to the endpoint will cause this function (featch_*_page) to break
+If all of these steps succeed, the updated parquet files, metadata files, and geographic lookup files are committed by `github-actions[bot]` and pushed back into the repository.
 
-_data.py: 
-Our client module fetches one page of JSON, which is essentially a list of dictionaries. For this reason we need the _records_to_dataframe function. The function starts off by using pd.DataFrame.from_records(records), then cleans each column according to its type. 
+## Calls Dashboard vs. Crime Dashboard Architecture:
 
-Note: Changes to the dataset schema in either data source will cause this function (*_records_to_dataframe) to break. 
+The two dashboards intentionally follow nearly the same architecture. Each has a query module, client module, data cleaning module, service module, snapshot module, dashboard data module, and dashboard figures module. This makes changes to one dashboard easier to understand using the structure of the other.
 
-_service.py: 
-As mentioned before the Socrata API paginates the datasets this dashboard accesses. After doing basic type checking the script initializes a list of all records and sets the page number to 0 before entering a while loop that exits if the page maximum is met or if the contents of one page is less than the size of a typical page (this indicates the end of the records). The script stores all fetched records in JSON then uses _data.py's  _records_to_dataframe function to convert the records to a dataframe. 
+The biggest differences occur after the source data has been loaded. The calls dashboard has dispatch records associated with CAD events, so multiple rows can belong to one event. It also has queued and arrival timestamps, allowing response times to be calculated. These response times are used in the map hover data and the volume versus response-time scatter plot.
 
-Rolling Snapshot and Data Refresh Layer:
-In order to avoid hitting the Socrata API every time a user starts the dashboard the app use a rolling snapshot of the last 365 days worth of data. To reduce the load on the API even further the app refreshes this snapshot by doing one initial build then updating the snapshot by fetching the last few days and deduplicating the results (this in effect fetches the newest day, but the overlap is multiple days to avoid issues when the refresh script job fails). Below is more information on the modules that control this process:
+The crime dashboard does not have response-time information, but it has the additional problem of offenses that have a neighborhood listed while their exact coordinates are unavailable. For this reason the crime dashboard separates mappable and unmappable offenses and combines their unique event counts when calculating neighborhood totals. Only mappable offenses can be displayed as map points.
 
-_snapshot.py:
-These scripts writes the parquet and metadata files for each dashboard. The metadata recorded includes the refresh timestamp, source start date, row count, and the columns. 
+The crime dashboard also has additional point filters for sub-category, neighborhood, and text searches. The calls dashboard currently uses only the broad top-level type-of-crime selection and date window for its event points.
 
-refresh_*_data.py:
-These scripts are the jobs that get run by github action runners every day. The __main__ block is set to only use the incremental refresh function, which as described above fetches the past few days and deduplicates results to update the rolling snapshot. 
+## Dashboard File Reference:
 
-Dashboard Data Layer:
-This layer controls how external data is utilized, how engineered features are calculated, and what gets fed to the dashboards themselves. The dashboards require boundaries for neighborhoods, populations for each neighborhood, and the calls dashboard needs one feature to be calculated from the columns supplied. For this reason the scripts controlling this layer is somewhat dense. It is important to note that these scripts are made specifically so that the graphs inside the dashboard do note have to seperately call for the same data, having one object with the dashboard context simplifies the process. The details of functions inside the scripts are below:
+The following is a basic reference for where changes to different parts of the dashboard should be made:
 
-_dashboard_data.py:
-These scripts contain the several functions that are all used by one orchestration function. Among the most important are:
-- load_mcpp_boundaries() loads the Seattle MCPP GeoJSON boundaries from the ArcGIS rest API 
-- load_neighborhood_population() loads population numbers for each neighborhood in Seattle
-- build_response_analysis() takes the first queued time, first arrival time, first event group, first priority, first dispatch neighborhood, and records the number of unique records for each event, calculates response time by subtracting queued time from arrival time, filters out NA, negative, and longer-than-day response times
+```text
+Change API query fields or SoQL:
+    dashboard/*_query.py
 
-load_dashboard_context():
-This function orchestrates the rest and returns all of the information the dashboard needs.
+Change API endpoint/request behavior:
+    dashboard/*_client.py
 
-               DASHBOARD CONTEXT FLOW
+Change initial API data cleaning:
+    dashboard/*_data.py
 
-                   Load Dataframe
- from dashboard/spd_snapshot.py load_spd_call_snapshot()
-                         |
-                         |
-                         ▼
-                   Clean DataFrame
-               prepare_call_snapshot()
-                         |
-                         |
-                         ▼
-             Load Neighborhood Boundaries
-                load_mcpp_boundaries()
-                         |
-                         |
-                         ▼
-      Filter out unmappable events for point map
-             prepare_mappable_events()
-                         |
-                         |
-                         ▼
-      Build Neighborhood/Event # Boundary Lookup
-          build_or_load_event_mcpp_lookup()
-                         |
-                         |
-                         ▼
-     Build DataFrame with MCPP Nieghborhood names
-                prepare_event_mcpp()
-                         |
-                         |
-                         ▼
-          Build DataFrame with Reponse Time 
-              build_response_analysis()
-                         |
-                         |
-                         ▼
-        Build Neighborhood Population Table
-           load_neighborhood_population()
-                         |
-                         |
-                         ▼
-              Calculate Years Observed
-             calculate_years_observed()
-                         |
-                         |
-                         ▼
-              Return Context Dictionary
+Change pagination or full dataset loading:
+    dashboard/*_service.py
 
-Visualization Layer:
+Change snapshot reading/writing:
+    dashboard/*_snapshot.py
+
+Change daily refresh behavior:
+    scripts/dashboard/refresh_*_data.py
+
+Change dashboard-specific data preparation:
+    dashboard/*_dashboard_data.py
+
+Change plots, hover data, or figure-specific filters:
+    dashboard/*_dashboard_figures.py
+
+Change calls event category definitions:
+    dashboard/spd_event_bins.py
+
+Change shared calls configuration, paths, or map settings:
+    dashboard/spd_config.py
+
+Change page layouts, controls, callbacks, or plot interactions:
+    app.py
+
+Change dashboard styling:
+    assets/style.css
+
+Change automated daily refresh behavior:
+    .github/workflows/daily_spd_refresh.yml
+
+Change dashboard smoke testing:
+    scripts/dashboard/smoke_check.py
+```

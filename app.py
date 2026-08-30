@@ -153,9 +153,30 @@ def get_default_map_date_range(
     )
 
     latest_day = valid_time[time_column].dropna().max().normalize()
-    start_day = latest_day - pd.Timedelta(days=29)
+    start_day = latest_day 
 
     return start_day.date().isoformat(), latest_day.date().isoformat()
+
+
+def get_full_dashboard_date_range(
+    context: dict,
+    time_column: str,
+) -> tuple[str, str]:
+    valid_time = context["valid_time"].copy()
+
+    valid_dates = pd.to_datetime(
+        valid_time[time_column],
+        errors="coerce",
+    ).dropna()
+
+    latest_day = valid_dates.max().normalize()
+    earliest_available_day = valid_dates.min().normalize()
+    earliest_analysis_day = earliest_available_day + pd.Timedelta(days=1)
+
+    return (
+        earliest_analysis_day.date().isoformat(),
+        latest_day.date().isoformat(),
+    )
 
 
 def clean_date_string(value) -> str | None:
@@ -177,12 +198,14 @@ def extract_daily_visible_date_range(
     relayout_data,
     default_start: str,
     default_end: str,
+    full_start: str,
+    full_end: str,
 ) -> tuple[str, str]:
     if not relayout_data:
         return default_start, default_end
 
     if relayout_data.get("xaxis.autorange") is True:
-        return default_start, default_end
+        return full_start, full_end
 
     start_value = None
     end_value = None
@@ -575,7 +598,17 @@ def create_app() -> Dash:
         CALL_TIME_COLUMN,
     )
 
+    full_call_start, full_call_end = get_full_dashboard_date_range(
+        calls_context,
+        CALL_TIME_COLUMN,
+    )
+
     default_crime_start, default_crime_end = get_default_map_date_range(
+        crime_context,
+        CRIME_TIME_COLUMN,
+    )
+
+    full_crime_start, full_crime_end = get_full_dashboard_date_range(
         crime_context,
         CRIME_TIME_COLUMN,
     )
@@ -1403,6 +1436,8 @@ def create_app() -> Dash:
             relayout_data=daily_relayout_data,
             default_start=default_call_start,
             default_end=default_call_end,
+            full_start=full_call_start,
+            full_end=full_call_end,
         )
 
         current_start, current_end = get_range_from_store(
@@ -1511,6 +1546,8 @@ def create_app() -> Dash:
             relayout_data=daily_relayout_data,
             default_start=default_crime_start,
             default_end=default_crime_end,
+            full_start=full_crime_start,
+            full_end=full_crime_end,
         )
 
         current_start, current_end = get_range_from_store(
