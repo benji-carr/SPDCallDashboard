@@ -10,3 +10,6 @@ TODO:
 - Add descriptive pages for each dashboard
 - 
 
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the Git workflow and contribution process.
