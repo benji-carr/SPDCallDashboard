@@ -8,7 +8,7 @@ __pycache__/
 .DS_Store
 archive/
 
-notebooks/
+notebooks/06_ml_feature_exploration.ipynb
 
 
 #
