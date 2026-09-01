@@ -25,3 +25,9 @@ spd_event_response_times_2009_2026.csv
 *.tmp
 reports/
 
+
+# Forecasting experiment / backtest outputs
+data/backtest/
+
+# Temporary forecasting/test artifacts
+tests/_tmp/
