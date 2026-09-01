@@ -1,2 +1,0 @@
-n_days,mean_correct_top10,median_correct_top10,mean_top10_accuracy_pct,pct_days_10_of_10,pct_days_at_least_9,pct_days_at_least_8,pct_days_at_least_7,mean_top10_rank_error,median_top10_rank_error,mean_top10_volume_capture_pct,median_top10_volume_capture_pct,mean_overall_rank_correlation,pct_days_actual_cutoff_tie
-360,8.483333333333333,9.0,84.83333333333334,5.277777777777778,53.888888888888886,89.44444444444444,99.72222222222223,1.9641666666666668,1.0,97.40749594528583,97.6386426237552,0.922611516127158,28.61111111111111
