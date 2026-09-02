@@ -1,5 +1,38 @@
 # XGBoost Forecasting Architecture
 
+## Production Training
+
+The production XGBoost specification is source-controlled in
+`forecasting/production/xgboost.py` and is frozen before the all-history
+production refit. Production training uses every eligible feature-panel row,
+including the former final holdout; it does not retune or use in-sample fit
+metrics as model-quality evidence. The untouched holdout metrics remain the
+quality reference recorded with each artifact.
+
+Each run creates an immutable timestamped directory under
+`artifacts/models/spd_neighborhood_xgboost/<version>/` containing the
+authoritative sklearn `pipeline.joblib`, portable `booster.ubj`, feature
+schema, metadata/lineage, training summary, and checksums. Training and daily
+inference are intentionally separate stages; production training creates no
+`latest` pointer and does not deploy a model.
+
+## Production Inference And Monitoring
+
+Inference requires an explicit immutable model artifact. It builds exactly one
+next-day row per fitted neighborhood from observed history through the forecast
+origin, then preserves the raw input features, unrounded regression outputs,
+and deterministic predicted ranks in an immutable forecast ledger under
+`data/forecasts/`. A checksum-validated `latest.parquet` convenience copy is
+updated only after the immutable snapshot succeeds.
+
+New training artifacts include `monitoring_baseline.json`: fitted entities,
+numeric feature distributions and histogram references, plus fixed per-
+neighborhood lag-7 seasonal-naive denominators for future MASE evaluation.
+Snapshots record feature-bound observations and prediction distributions for
+immediate data/prediction drift investigation. Performance and concept drift
+still require actual target values after the forecast date and are intentionally
+not inferred at forecast generation time.
+
 ## Overview:
 
 The XGBoost forecasting implementation provides a machine-learning alternative to the neighborhood-level SARIMA and SARIMAX forecasting models. The goal is to predict next-day Seattle Police Department call volume for each dispatch neighborhood using recent target history, calendar information, and optional external predictors.

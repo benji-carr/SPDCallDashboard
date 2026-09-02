@@ -56,13 +56,25 @@ def test_resolve_data_paths_prefers_tuning_manifest():
         shutil.rmtree(run_dir, ignore_errors=True)
 
 
-def test_resolve_data_paths_reports_all_attempts_for_missing_target():
+def test_resolve_data_paths_reports_all_attempts_for_missing_target(
+    monkeypatch,
+):
     evaluator = load_evaluator_module()
     run_dir = Path("tests") / "_tmp" / f"missing_{uuid.uuid4().hex}"
     results_path = run_dir / "configuration_results.csv"
 
     run_dir.mkdir(parents=True, exist_ok=True)
     results_path.touch()
+    monkeypatch.setattr(
+        evaluator,
+        "TARGET_PANEL_5Y_PATH",
+        Path("missing_default_target.parquet"),
+    )
+    monkeypatch.setattr(
+        evaluator,
+        "XGBOOST_FEATURE_PANEL_PATH",
+        Path("missing_default_features.parquet"),
+    )
 
     try:
         with pytest.raises(FileNotFoundError) as exc_info:
