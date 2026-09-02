@@ -33,6 +33,163 @@ immediate data/prediction drift investigation. Performance and concept drift
 still require actual target values after the forecast date and are intentionally
 not inferred at forecast generation time.
 
+## Production Monitoring
+
+Production monitoring is a separate post-inference stage implemented in
+`forecasting/production/monitoring.py` with a thin CLI in
+`scripts/forecasting/update_xgboost_monitoring.py`. Monitoring requires an
+explicit `--artifact-dir`, validates the artifact checksums first, and only
+discovers forecast snapshots associated with that artifact run unless the
+caller explicitly overrides that scope.
+
+Monitoring does not retrain, retune, promote, or modify any immutable forecast
+snapshot. It writes new immutable realized evaluations when actuals mature and
+separate immutable monitoring reports for the current artifact state.
+
+### Data Quality
+
+Data quality checks are kept separate from statistical drift. Monitoring fails
+clearly on corrupted artifact or forecast checksums, incompatible model
+identity, duplicate forecast keys, unexpected neighborhood sets, or incomplete
+ledger directories.
+
+For realized evaluation, each target date must contain one finite actual call
+value per expected neighborhood. Legitimate zero-call neighborhoods are
+accepted. Incomplete actual cross-sections are marked as not evaluable yet
+rather than being silently scored.
+
+### Feature Drift
+
+Immediate feature-drift monitoring uses the immutable
+`inference_features.parquet` rows preserved with each forecast and compares
+them with the training reference distributions stored in
+`monitoring_baseline.json`.
+
+The primary statistical drift features are the target-history predictors:
+
+```text
+calls_lag_1
+calls_lag_2
+calls_lag_3
+calls_lag_7
+calls_lag_14
+calls_lag_21
+calls_lag_28
+calls_rolling_mean_7
+calls_rolling_mean_14
+calls_rolling_mean_28
+calls_rolling_std_7
+calls_rolling_std_28
+```
+
+For these features, monitoring records inference counts, missing counts,
+summary moments, tail quantiles, range excursions relative to training, and
+PSI using the frozen training histogram bins from the artifact baseline.
+
+The calendar covariates
+
+```text
+is_weekend
+week_of_year_sin
+week_of_year_cos
+```
+
+are treated differently. They are deterministic functions of `target_date`, so
+daily cross-sectional drift alarms would be misleading. Monitoring validates
+their correctness, records them, and excludes them from daily statistical drift
+classification.
+
+### Prediction Drift
+
+Prediction drift is available immediately from the immutable `forecast.parquet`
+ snapshot. For each forecast date, monitoring records the prediction
+distribution, top-10 predicted volume, top-10 share of total predicted volume,
+and rank-distribution sanity signals.
+
+Monitoring also compares each neighborhood prediction with the frozen training
+target statistics stored in `monitoring_baseline.json`. This produces
+per-neighborhood z-reference behavior signals such as mean absolute prediction
+z and the rate of neighborhoods with `|z| > 2` or `|z| > 3`. These are model
+behavior signals, not proof of concept drift.
+
+### Realized Forecast Evaluation
+
+Realized evaluation only occurs after actual target values arrive. A production
+forecast is eligible when:
+
+```text
+target_date <= latest observed target_date
+```
+
+and the actual target panel contains the complete expected neighborhood
+cross-section for that date.
+
+Forecasts still awaiting actuals are reported as immature rather than treated
+as failures. If the observed target panel ends on `2026-08-12`, then a
+forecast targeting `2026-08-13` remains unevaluated on September 2, 2026.
+
+Each realized evaluation writes:
+
+```text
+actuals_used.parquet
+realized_predictions.parquet
+daily_metrics.json
+checksums.json
+```
+
+The realized prediction table preserves the exact predicted and actual calls,
+deterministic ranks, signed and absolute errors, squared errors, and scaled
+absolute error based on the fixed lag-7 neighborhood denominators frozen in the
+training artifact.
+
+### Performance / Concept Drift
+
+Performance and concept-drift monitoring uses only matured realized
+evaluations. Daily realized metrics include MAE, RMSE, bias, mean absolute
+bias, MASE, top-10 accuracy, mean correct top 10, top-10 actual volume
+capture, and rank correlation.
+
+Rolling monitoring windows of 7, 28, and 90 days summarize the latest current
+evaluation for each forecast. Each rolling record explicitly states how many
+realized dates are available and whether the requested window is complete.
+Short partial histories are therefore not disguised as complete 28-day or
+90-day evidence.
+
+The production artifact carries frozen development and final-holdout reference
+metrics. Monitoring reports descriptive comparisons such as rolling MASE minus
+reference, rolling MASE ratio to reference, top-10 accuracy delta in percentage
+points, and rank-correlation delta. These are operational signals only; they
+do not automatically trigger retraining or model promotion.
+
+### Revised Actuals
+
+Forecast snapshots are immutable forever, but Seattle SPD actuals may be
+revised later. Monitoring therefore fingerprints the exact actual cross-section
+used for each target date with a deterministic SHA-256 hash over sorted
+`target_date`, `neighborhood`, and `actual_calls`.
+
+An evaluation is identified by:
+
+```text
+forecast_id + actuals_sha256
+```
+
+If actuals are revised later, the old evaluation remains auditable and a new
+immutable evaluation directory is created for the revised fingerprint. Current
+rolling performance uses the evaluation whose fingerprint matches the latest
+current actual representation.
+
+### Monitoring Windows
+
+Feature drift, prediction drift, and realized performance all expose 7-day,
+28-day, and 90-day rolling windows. These windows aggregate immutable
+production snapshots or the latest realized evaluations rather than relying on
+in-sample training predictions.
+
+An optional mutable `latest/` convenience layer may mirror the newest validated
+monitoring summary and key parquet outputs, but the immutable evaluation and
+report ledgers remain the audit source of truth.
+
 ## Overview:
 
 The XGBoost forecasting implementation provides a machine-learning alternative to the neighborhood-level SARIMA and SARIMAX forecasting models. The goal is to predict next-day Seattle Police Department call volume for each dispatch neighborhood using recent target history, calendar information, and optional external predictors.
