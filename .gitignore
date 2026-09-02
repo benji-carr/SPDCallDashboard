@@ -28,6 +28,8 @@ reports/
 
 # Forecasting experiment / backtest outputs
 data/backtest/
+artifacts/models/
+data/forecasts/
 
 # Temporary forecasting/test artifacts
 tests/_tmp/

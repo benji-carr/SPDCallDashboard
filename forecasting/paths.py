@@ -16,13 +16,11 @@ RAW_PREDICTHQ_DIR = (
 )
 
 PROCESSED_DIR = DATA_DIR / "processed"
-TARGET_PANEL_5Y_PATH = (
-    PROCESSED_DIR / "target_panel_5y.parquet"
-)
+TARGET_PANEL_5Y_PATH = DATA_DIR / "target_panel_5y.parquet"
 
 FEATURES_DIR = DATA_DIR / "features"
 XGBOOST_FEATURE_PANEL_PATH = (
-    FEATURES_DIR / "xgboost_feature_panel.parquet"
+    DATA_DIR / "xgboost" / "xgboost_feature_panel.parquet"
 )
 SPECIAL_EVENTS_FEATURE_PANEL_PATH = (
     FEATURES_DIR
@@ -61,6 +59,8 @@ XGBOOST_REGRESSION_BACKTEST_DIR = (
 XGBOOST_TUNING_DIR = (
     XGBOOST_BACKTEST_DIR / "tuning"
 )
+MODEL_ARTIFACTS_DIR = ROOT / "artifacts" / "models"
+FORECASTS_DIR = DATA_DIR / "forecasts"
 XGBOOST_PERMITTED_EVENTS_BACKTEST_DIR = (
     XGBOOST_BACKTEST_DIR
     / "permitted_events"
