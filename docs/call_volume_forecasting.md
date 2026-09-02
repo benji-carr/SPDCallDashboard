@@ -46,6 +46,57 @@ Monitoring does not retrain, retune, promote, or modify any immutable forecast
 snapshot. It writes new immutable realized evaluations when actuals mature and
 separate immutable monitoring reports for the current artifact state.
 
+## Production Data Refresh
+
+`forecasting/production/data_refresh.py` rebuilds the v1 target panel from
+the Seattle Open Data SPD Calls Socrata dataset (`33kz-ixgy`). The target is
+still the number of distinct `cad_event_number` values per Seattle-local day
+and `dispatch_neighborhood`; repeated source rows do not increase a call
+count. The bounded full refresh deliberately retrieves the rolling five-year
+source horizon because the existing dashboard snapshot is only one year and
+cannot safely supply the frozen v1 panel by itself. The resulting panel is a
+complete daily artifact-neighborhood grid, so valid zero-call days are kept.
+
+## Daily Orchestration
+
+`scripts/forecasting/run_xgboost_daily_pipeline.py` is the scheduler-ready
+entry point and requires `--artifact-dir`. It validates that artifact, refreshes
+and validates the target panel, evaluates real matured forecasts, creates at
+most one next-day forecast, then writes one final monitoring report. It never
+trains, retunes, or promotes a model.
+
+## Data Freshness
+
+The refresh summary records a canonical target-panel SHA-256 and source age.
+`--max-source-age-days N` turns that age into an explicit fail-closed SLA;
+without it the pipeline records a warning but does not invent a policy. A
+failed source refresh stops inference. `--skip-source-refresh` is an explicit
+local-input/reproducibility mode only and still validates that input.
+
+## Complete-Day Policy
+
+Daily completeness is evaluated in `America/Los_Angeles`. The current Seattle
+calendar day is always excluded; the selected complete-through date is the
+earlier of the newest source event date and Seattle yesterday. The panel must
+end exactly at that date and match the fitted artifact neighborhood set.
+
+## Missed Production Runs
+
+When runs are missed, existing forecasts are evaluated if their actuals are
+available, but dates whose actuals are already known are never backfilled into
+the production ledger. They are recorded as operational missed dates and the
+pipeline produces only the next unknown day.
+
+## Failure And Retry Semantics
+
+Completed operations runs are immutable under `data/operations/` and have a
+deterministic logical identity based on artifact run, complete-through date,
+and target-panel fingerprint. Retries of the same state reuse that record and
+the immutable forecast snapshot. Failures write separate diagnostic records;
+they are never labeled completed. A cross-platform exclusive file lock prevents
+concurrent writers and is released in `finally`; stale locks require operator
+inspection rather than automatic deletion.
+
 ### Data Quality
 
 Data quality checks are kept separate from statistical drift. Monitoring fails

@@ -345,7 +345,8 @@ def summarize_feature_drift(
                     "below_training_min_rate": float((values < reference["min"]).mean()),
                     "above_training_max_count": int((values > reference["max"]).sum()),
                     "above_training_max_rate": float((values > reference["max"]).mean()),
-                    "psi": calculate_population_stability_index(values, reference["histogram"]),
+                    "psi": calculate_population_stability_index(values, reference["histogram"])
+                    if "histogram" in reference else None,
                     **stats,
                 }
             )
@@ -389,10 +390,13 @@ def summarize_feature_drift(
                         "below_training_min_rate": float((values < reference["min"]).mean()),
                         "above_training_max_count": int((values > reference["max"]).sum()),
                         "above_training_max_rate": float((values > reference["max"]).mean()),
-                        "psi": calculate_population_stability_index(values, reference["histogram"]),
+                        "psi": calculate_population_stability_index(values, reference["histogram"])
+                        if "histogram" in reference else None,
                         **stats,
                     }
                 )
+    if not rows:
+        return pd.DataFrame()
     if not rows:
         return pd.DataFrame()
     return pd.DataFrame(rows).sort_values(
@@ -491,6 +495,8 @@ def summarize_prediction_drift(
                     "prediction_z_gt_3_rate": float((np.abs(z_score) > 3).fillna(False).mean()),
                 }
             )
+    if not rows:
+        return pd.DataFrame()
     return pd.DataFrame(rows).sort_values(
         ["target_date", "window_days_requested"]
     ).reset_index(drop=True)
@@ -552,6 +558,8 @@ def determine_forecast_maturity(
                 "latest_observed_target_date": latest_actual_date,
             }
         )
+    if not rows:
+        return pd.DataFrame(columns=["forecast_id", "target_date", "maturity_status", "maturity_reason", "latest_observed_target_date"])
     return pd.DataFrame(rows).sort_values("target_date").reset_index(drop=True)
 
 
@@ -868,7 +876,9 @@ def run_monitoring(
                 "source_data_age_days": source_data_age_days,
             }
         )
-    forecast_inventory = pd.DataFrame(inventory_rows).sort_values("target_date").reset_index(drop=True)
+    forecast_inventory = pd.DataFrame(inventory_rows)
+    if not forecast_inventory.empty:
+        forecast_inventory = forecast_inventory.sort_values("target_date").reset_index(drop=True)
 
     evaluation_dirs: list[Path] = []
     evaluation_idempotent_count = 0
