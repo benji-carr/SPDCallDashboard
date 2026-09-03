@@ -47,6 +47,35 @@ def fetch_crime_page(
     return data
 
 
+def fetch_latest_crime_dashboard_record(
+    *,
+    timeout: float = 10.0,
+) -> dict[str, Any]:
+    """Fetch the newest source record that can appear in the crime dashboard."""
+    if isinstance(timeout, bool) or not isinstance(timeout, (int, float)):
+        raise ValueError("timeout must be an integer or float")
+    if timeout <= 0:
+        raise ValueError("timeout must be larger than zero")
+
+    response = requests.get(
+        CRIME_DATA_ENDPOINT,
+        params={
+            "$select": "offense_date,offense_id",
+            "$where": "offense_date IS NOT NULL AND offense_id IS NOT NULL",
+            "$order": "offense_date DESC, offense_id ASC",
+            "$limit": 1,
+        },
+        timeout=timeout,
+    )
+    response.raise_for_status()
+    data = response.json()
+    if not isinstance(data, list) or not all(isinstance(item, dict) for item in data):
+        raise ValueError("Crime source response must be a list of objects")
+    if not data:
+        raise ValueError("Crime source returned no valid dashboard records")
+    return data[0]
+
+
 if __name__ == "__main__":
     records = fetch_crime_page(
         start_date="2025-01-01",
