@@ -23,40 +23,62 @@ SPD_CALL_COLUMNS = [
 ]
 
 
+def _validate_iso_date(value: str | None, field_name: str) -> str | None:
+    if value is None:
+        return None
+    if not isinstance(value, str):
+        raise ValueError(f"{field_name} must be a string")
+    try:
+        parsed_date = date.fromisoformat(value)
+    except ValueError as error:
+        raise ValueError(f"{field_name} must be a valid date in YYYY-MM-DD format") from error
+    if parsed_date.isoformat() != value:
+        raise ValueError(f"{field_name} must be in YYYY-MM-DD format")
+    return value
+
+
 def build_spd_call_query_params(
-    start_date: str,
+    start_date: str | None = None,
+    *,
+    end_date: str | None = None,
     limit: int = 1000,
     offset: int = 0,
+    columns: list[str] | tuple[str, ...] | None = None,
+    order: str = "cad_event_original_time_queued DESC",
 ) -> dict[str, str | int]:
-    if not isinstance(start_date, str):
-        raise ValueError("date must be a string")
-    
-    try:
-        parsed_date = date.fromisoformat(start_date)
-    except ValueError as error:
-        raise ValueError("start_date must be a valid date in YYYY-MM-DD format") from error
-    
-    if parsed_date.isoformat() != start_date:
-        raise ValueError("start_date must be in YYYY-MM-DD format")
+    start_date = _validate_iso_date(start_date, "start_date")
+    end_date = _validate_iso_date(end_date, "end_date")
+    if start_date is not None and end_date is not None and end_date < start_date:
+        raise ValueError("end_date cannot be earlier than start_date")
 
     if isinstance(limit, bool) or not isinstance(limit, int):
         raise ValueError("limit must be an integer")
     if limit < 1:
         raise ValueError("limit cannot be less than 1")
-    
+
     if isinstance(offset, bool) or not isinstance(offset, int):
         raise ValueError("offset must be an integer")
     if offset < 0:
         raise ValueError("offset cannot be negative")
-    
+
+    selected_columns = list(columns) if columns is not None else SPD_CALL_COLUMNS
+    if not selected_columns:
+        raise ValueError("columns cannot be empty")
+
+    filters: list[str] = []
+    if start_date is not None:
+        filters.append(f"cad_event_original_time_queued >= '{start_date}T00:00:00.000'")
+    if end_date is not None:
+        filters.append(f"cad_event_original_time_queued < '{end_date}T00:00:00.000'")
+
     params = {
-        "$select": ",".join(SPD_CALL_COLUMNS),
-        "$where": (f"cad_event_original_time_queued >= '{start_date}T00:00:00.000'"),
-        "$order": "cad_event_original_time_queued DESC",
-        "$limit": limit, 
+        "$select": ",".join(selected_columns),
+        "$order": order,
+        "$limit": limit,
         "$offset": offset,
     }
-
+    if filters:
+        params["$where"] = " AND ".join(filters)
     return params
 
 if __name__ == "__main__":

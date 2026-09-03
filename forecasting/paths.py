@@ -61,6 +61,8 @@ XGBOOST_TUNING_DIR = (
 )
 MODEL_ARTIFACTS_DIR = ROOT / "artifacts" / "models"
 FORECASTS_DIR = DATA_DIR / "forecasts"
+MONITORING_DIR = DATA_DIR / "monitoring"
+OPERATIONS_DIR = DATA_DIR / "operations"
 XGBOOST_PERMITTED_EVENTS_BACKTEST_DIR = (
     XGBOOST_BACKTEST_DIR
     / "permitted_events"
