@@ -144,3 +144,39 @@ def test_manifest_is_completed_only_after_outputs_and_never_trains(monkeypatch):
         assert manifest["monitoring"]["path"]
         assert not any("train" in item["phase"].lower() for item in manifest["phase_statuses"])
     finally: shutil.rmtree(root, ignore_errors=True)
+
+
+def test_production_orchestration_uses_default_full_refresh():
+    root, panel, artifact = make_environment()
+    calls = []
+    try:
+        def capture_refresh(**kwargs):
+            calls.append(kwargs)
+            return {
+                "target_panel": panel,
+                "summary": {
+                    "refresh_method": "captured",
+                    "refresh_strategy": "captured",
+                    "source_identifier": "test",
+                    "source_dataset_id": "33kz-ixgy",
+                    "latest_source_date": panel["target_date"].max().date().isoformat(),
+                    "seattle_today": "2024-03-20",
+                    "latest_allowed_complete_date": "2024-03-19",
+                    "selected_complete_through_date": panel["target_date"].max().date().isoformat(),
+                    "target_panel_path": str(root / "panel.parquet"),
+                    "target_panel_sha256": target_panel_sha256(panel),
+                },
+            }
+
+        run_daily_pipeline(
+            artifact_dir=artifact,
+            target_panel_path=root / "panel.parquet",
+            forecasts_root=root / "forecasts",
+            monitoring_root=root / "monitoring",
+            operations_root=root / "operations",
+            refresh_function=capture_refresh,
+        )
+        assert len(calls) == 1
+        assert sorted(calls[0]) == ["expected_neighborhoods", "target_panel_path"]
+    finally:
+        shutil.rmtree(root, ignore_errors=True)
