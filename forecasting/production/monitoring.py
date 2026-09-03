@@ -106,6 +106,17 @@ def _safe_float(value) -> float | None:
     return float(value)
 
 
+def _smape(actual: pd.Series, predicted: pd.Series) -> float:
+    """Return percentage sMAPE, excluding only zero-actual/zero-prediction pairs."""
+    actual_values = actual.to_numpy(dtype=float)
+    predicted_values = predicted.to_numpy(dtype=float)
+    denominator = np.abs(actual_values) + np.abs(predicted_values)
+    valid = denominator != 0
+    if not np.any(valid):
+        return float("nan")
+    return float(200 * np.mean(np.abs(actual_values[valid] - predicted_values[valid]) / denominator[valid]))
+
+
 def _validate_directory_checksums(directory: Path, expected_files: list[str]) -> dict:
     missing = [name for name in expected_files if not (directory / name).is_file()]
     if missing:
@@ -633,6 +644,7 @@ def _build_realized_predictions(
         "actuals_sha256": realized["actuals_sha256"].iloc[0],
         "n_neighborhoods": int(len(realized)),
         "mae": float(realized["absolute_error"].mean()),
+        "smape": _smape(realized["actual_calls"], realized["predicted_calls"]),
         "rmse": float(np.sqrt(realized["squared_error"].mean())),
         "bias": float(realized["error"].mean()),
         "mean_absolute_bias": float(realized["error"].abs().mean()),
@@ -700,6 +712,8 @@ def discover_existing_evaluations(monitoring_root: Path) -> pd.DataFrame:
                 "forecast_origin": pd.Timestamp(metrics["forecast_origin"]).normalize(),
                 "actuals_sha256": metrics["actuals_sha256"],
                 "mae": metrics["mae"],
+                # Historical immutable evaluations predate sMAPE production monitoring.
+                "smape": metrics.get("smape", np.nan),
                 "rmse": metrics["rmse"],
                 "bias": metrics["bias"],
                 "mean_absolute_bias": metrics["mean_absolute_bias"],
@@ -720,6 +734,7 @@ def discover_existing_evaluations(monitoring_root: Path) -> pd.DataFrame:
                 "forecast_origin",
                 "actuals_sha256",
                 "mae",
+                "smape",
                 "rmse",
                 "bias",
                 "mean_absolute_bias",
@@ -788,6 +803,7 @@ def build_rolling_performance(
                     "window_start": pd.Timestamp(window["target_date"].min()).date().isoformat(),
                     "window_end": pd.Timestamp(window["target_date"].max()).date().isoformat(),
                     "mae": float(window["mae"].mean()),
+                    "smape": float(window["smape"].mean()),
                     "rmse": float(np.sqrt(np.mean(np.square(window["rmse"])))),
                     "bias": float(window["bias"].mean()),
                     "mean_absolute_bias": float(window["mean_absolute_bias"].mean()),
@@ -897,20 +913,28 @@ def run_monitoring(
             / f"forecast_id={snapshot.forecast_id}"
             / f"actuals_sha256={metrics['actuals_sha256']}"
         )
-        is_idempotent = _write_immutable_directory(
-            final_dir=evaluation_dir,
-            expected_files=EVALUATION_FILES,
-            write_files={
-                "actuals_used.parquet": lambda path, frame=actuals_for_date.assign(
-                    actual_calls=actuals_for_date["calls"],
-                    actuals_sha256=metrics["actuals_sha256"],
-                )[["target_date", "neighborhood", "actual_calls", "actuals_sha256"]]: frame.to_parquet(path, index=False),
-                "realized_predictions.parquet": lambda path, frame=realized: frame.to_parquet(path, index=False),
-                "daily_metrics.json": lambda path, payload=metrics: path.write_text(
-                    _stable_json_dumps(payload), encoding="utf-8"
-                ),
-            },
-        )
+        legacy_metrics = None
+        if evaluation_dir.is_dir():
+            _validate_directory_checksums(evaluation_dir, [*EVALUATION_FILES, "checksums.json"])
+            legacy_metrics = json.loads((evaluation_dir / "daily_metrics.json").read_text(encoding="utf-8"))
+        if legacy_metrics is not None and "smape" not in legacy_metrics:
+            # Immutable evaluations created before production sMAPE support remain valid history.
+            is_idempotent = True
+        else:
+            is_idempotent = _write_immutable_directory(
+                final_dir=evaluation_dir,
+                expected_files=EVALUATION_FILES,
+                write_files={
+                    "actuals_used.parquet": lambda path, frame=actuals_for_date.assign(
+                        actual_calls=actuals_for_date["calls"],
+                        actuals_sha256=metrics["actuals_sha256"],
+                    )[["target_date", "neighborhood", "actual_calls", "actuals_sha256"]]: frame.to_parquet(path, index=False),
+                    "realized_predictions.parquet": lambda path, frame=realized: frame.to_parquet(path, index=False),
+                    "daily_metrics.json": lambda path, payload=metrics: path.write_text(
+                        _stable_json_dumps(payload), encoding="utf-8"
+                    ),
+                },
+            )
         if is_idempotent:
             evaluation_idempotent_count += 1
         evaluation_dirs.append(evaluation_dir)

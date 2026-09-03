@@ -1570,4 +1570,14 @@ Change permitted-event XGBoost experiments:
 ```
 
 The feature definitions and leakage-safe `shift()`-before-rolling construction are implemented in the current `forecasting/features/xgboost.py`, while the fold execution, per-neighborhood metrics, and fresh-pipeline-per-fold logic are implemented in `forecasting/backtests/xgboost.py`.   
+
+## Production Status Command
+
+Use the read-only operator report for one explicit production artifact:
+
+```powershell
+python -m scripts.forecasting.show_xgboost_status --artifact-dir artifacts/models/spd_neighborhood_xgboost/v1/<run_id>
+```
+
+It only reads existing artifacts, forecasts, monitoring outputs, and operations records; it does not refresh data, generate forecasts, run monitoring, train, or update pointers. `INCOMPLETE` rolling metrics mean the existing monitoring window does not yet contain its required number of production dates.
 ```

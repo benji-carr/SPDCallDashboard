@@ -311,8 +311,9 @@ def test_realized_metrics_match_expected_daily_values_and_reference_deltas():
             update_latest=False,
         )
         evaluations = result["latest_evaluations"]
-        assert {"mae", "rmse", "bias", "mase", "top10_accuracy_pct", "rank_correlation"} <= set(evaluations.columns)
+        assert {"mae", "smape", "rmse", "bias", "mase", "top10_accuracy_pct", "rank_correlation"} <= set(evaluations.columns)
         assert (evaluations["mae"] >= 0).all()
+        assert (evaluations["smape"] >= 0).all()
         assert (evaluations["rmse"] >= 0).all()
         rolling = result["rolling_performance"]
         assert not rolling.empty
