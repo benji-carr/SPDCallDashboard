@@ -1,19 +1,24 @@
+# Python environments and caches
 .venv/
 venv/
 __pycache__/
 *.pyc
-.env
 .pytest_cache/
-.ipynb_checkpoints/
-.DS_Store
-archive/
 
+# Local configuration and editor artifacts
+.env
+.DS_Store
+.ipynb_checkpoints/
+*.tmp
+
+# Generated notebook, report, and archive output
+archive/
+reports/
 notebooks/06_ml_feature_exploration.ipynb
 
-
-#
-manual_spd_to_boundary_neighborhood_crosswalk_exploded.csv
+# Local exploratory dashboard outputs
 manual_spd_to_boundary_neighborhood_crosswalk.csv
+manual_spd_to_boundary_neighborhood_crosswalk_exploded.csv
 weekly_volume.parquet
 priority_hourly_full.parquet
 monthly_volume.parquet
@@ -22,14 +27,32 @@ monthly_by_event_group.parquet
 monthly_by_call_type.parquet
 spd_event_response_times_2009_2026.parquet
 spd_event_response_times_2009_2026.csv
-*.tmp
-reports/
+data/processed/response_time/
 
+# Downloaded or generated dashboard data
+data/raw/
+data/processed/spd_calls.parquet
+data/processed/spd_calls_metadata.json
+data/processed/crime/
+data/processed/geography/*.parquet
+data/processed/geography/boundary_assignment_*.csv
+data/processed/geography/spd_dispatch_neighborhood_boundaries.geojson
+data/processed/geography/spd_mcpp_boundaries.geojson
+data/processed/geography/spd_raw_boundary_polygon_assignments.geojson
 
-# Forecasting experiment / backtest outputs
+# Generated forecasting and experiment data
+data/target_panel_5y.parquet
+data/xgboost/
+data/features/
+data/permitted_events/
+data/predicthq_smoke/
 data/backtest/
+
+# Forecasting production runtime state
 artifacts/models/
 data/forecasts/
+data/monitoring/
+data/operations/
 
-# Temporary forecasting/test artifacts
+# Temporary forecasting and test artifacts
 tests/_tmp/

@@ -66,6 +66,12 @@ Push changes to the repository
 
 The geography lookup files are removed before rebuilding the dashboard contexts so the lookup between events and MCPP neighborhood polygons is recreated using the newest snapshot data.
 
+## Runtime Data
+
+Downloaded dashboard snapshots, derived geography lookups, forecasting panels, model artifacts, forecasts, monitoring records, and operations records are intentionally not version-controlled. They are runtime state and must be restored from persistent storage or regenerated before starting the application. Static boundary files, population reference data, and manual crosswalks remain in Git.
+
+For an initial local SPD dashboard bootstrap, use the existing full-refresh callable in `scripts/dashboard/refresh_spd_data.py`; the routine used by the daily workflow is incremental and expects a prior local snapshot. This will be replaced by persistent production storage as the deployment is containerized.
+
 After the contexts are rebuilt the workflow runs `scripts/dashboard/smoke_check.py`. The smoke check loads the calls dashboard context and attempts to build the daily figure, scatter plot, and map. The check fails if any of the figures contain no traces.
 
 If all of these steps succeed, the updated parquet files, metadata files, and geographic lookup files are committed by `github-actions[bot]` and pushed back into the repository.
