@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import sys
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
@@ -15,6 +16,10 @@ from dashboard.crime_snapshot import load_crime_snapshot
 from dashboard.spd_client import fetch_latest_spd_dashboard_record
 from dashboard.spd_config import DATA_PROCESSED_DIR, EVENT_ID_COLUMN as SPD_EVENT_ID, TIME_COLUMN as SPD_TIME_COLUMN
 from dashboard.spd_snapshot import load_spd_call_snapshot
+
+
+class StaleDataError(RuntimeError):
+    """Raised only when a valid source date differs from a valid snapshot date."""
 
 
 def _normalized_date(value: Any, *, label: str) -> pd.Timestamp:
@@ -48,7 +53,7 @@ def assert_fresh(*, label: str, source_date: pd.Timestamp, dashboard_date: pd.Ti
     source_date = pd.Timestamp(source_date).normalize()
     dashboard_date = pd.Timestamp(dashboard_date).normalize()
     if source_date != dashboard_date:
-        raise ValueError(
+        raise StaleDataError(
             f"{label} dashboard data is stale: Seattle Open Data latest day="
             f"{source_date.date().isoformat()}; dashboard latest day={dashboard_date.date().isoformat()}"
         )
@@ -83,10 +88,26 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Check dashboard snapshots against Seattle Open Data freshness.")
     parser.add_argument("--dataset", choices=("all", "calls", "crime"), default="all")
     args = parser.parse_args()
-    if args.dataset in {"all", "calls"}:
-        check_spd_calls_freshness()
-    if args.dataset in {"all", "crime"}:
-        check_crime_freshness()
+    try:
+        stale_errors: list[StaleDataError] = []
+        if args.dataset in {"all", "calls"}:
+            try:
+                check_spd_calls_freshness()
+            except StaleDataError as error:
+                stale_errors.append(error)
+        if args.dataset in {"all", "crime"}:
+            try:
+                check_crime_freshness()
+            except StaleDataError as error:
+                stale_errors.append(error)
+        if stale_errors:
+            raise StaleDataError("\n".join(str(error) for error in stale_errors))
+    except StaleDataError as error:
+        print(error, file=sys.stderr)
+        raise SystemExit(2) from error
+    except Exception as error:
+        print(f"Freshness check failed: {error}", file=sys.stderr)
+        raise SystemExit(1) from error
 
 
 if __name__ == "__main__":

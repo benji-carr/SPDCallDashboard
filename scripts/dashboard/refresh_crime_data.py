@@ -11,6 +11,7 @@ from dashboard.crime_snapshot import (
     load_crime_snapshot,
     save_crime_snapshot,
 )
+from scripts.dashboard.check_data_freshness import check_crime_freshness
 
 
 CRIME_OUTPUT_DIR = Path("data/processed/crime")
@@ -282,10 +283,15 @@ def incremental_refresh_crime_snapshot(
     return snapshot_path, metadata_path
 
 
-if __name__ == "__main__":
+def main() -> None:
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s %(levelname)s %(message)s",
     )
 
     incremental_refresh_crime_snapshot()
+    check_crime_freshness()
+
+
+if __name__ == "__main__":
+    main()

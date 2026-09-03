@@ -1,0 +1,50 @@
+name: Dashboard freshness recovery
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 23 * * *"
+
+permissions:
+  contents: read
+
+jobs:
+  check-freshness:
+    runs-on: ubuntu-latest
+    outputs:
+      stale: ${{ steps.freshness.outputs.stale }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install dependencies
+        run: python -m pip install -r requirements.txt
+      - id: freshness
+        name: Check both dashboard snapshots
+        shell: bash
+        run: |
+          set +e
+          python -m scripts.dashboard.check_data_freshness --dataset all
+          status=$?
+          set -e
+          if [ "$status" -eq 0 ]; then
+            echo "stale=false" >> "$GITHUB_OUTPUT"
+            echo "Dashboard data are fresh; no recovery is needed."
+          elif [ "$status" -eq 2 ]; then
+            echo "stale=true" >> "$GITHUB_OUTPUT"
+            echo "Dashboard data are stale; starting shared refresh workflow."
+          else
+            echo "Freshness checker failed with exit code $status; recovery will not run." >&2
+            exit "$status"
+          fi
+
+  refresh-stale-data:
+    needs: check-freshness
+    if: needs.check-freshness.outputs.stale == 'true'
+    uses: ./.github/workflows/daily_spd_refresh.yml
+    permissions:
+      contents: write
+      pull-requests: write

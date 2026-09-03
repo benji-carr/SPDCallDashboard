@@ -1,6 +1,7 @@
 name: Daily SPD dashboard refresh
 
 on:
+  workflow_call:
   workflow_dispatch:
   schedule:
     - cron: "17 11 * * *"
@@ -38,11 +39,7 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements-dev.txt
-
-      - name: Run data freshness unit tests
-        run: |
-          python -m pytest tests/dashboard/test_data_freshness.py -q
+          pip install -r requirements.txt
 
       - name: Refresh SPD calls data
         run: |
@@ -51,11 +48,6 @@ jobs:
       - name: Refresh SPD crime data
         run: |
           python -m scripts.dashboard.refresh_crime_data
-
-      - name: Verify dashboard data freshness
-        run: |
-          python -m scripts.dashboard.check_data_freshness --dataset calls
-          python -m scripts.dashboard.check_data_freshness --dataset crime
 
       - name: Remove generated geography lookup caches
         run: |

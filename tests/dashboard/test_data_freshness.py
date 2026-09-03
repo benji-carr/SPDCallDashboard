@@ -1,9 +1,12 @@
 import pandas as pd
 import pytest
+import sys
 
 from dashboard.crime_client import fetch_latest_crime_dashboard_record
 from dashboard.spd_client import fetch_latest_spd_dashboard_record
+from scripts.dashboard import check_data_freshness
 from scripts.dashboard.check_data_freshness import (
+    StaleDataError,
     assert_fresh,
     latest_dashboard_date,
     latest_source_date,
@@ -82,5 +85,40 @@ def test_equal_calendar_dates_pass_despite_time_of_day():
 
 
 def test_older_dashboard_date_fails_with_diagnostic_message():
-    with pytest.raises(ValueError, match="SPD calls dashboard data is stale: Seattle Open Data latest day=2026-09-03; dashboard latest day=2026-09-02"):
+    with pytest.raises(StaleDataError, match="SPD calls dashboard data is stale: Seattle Open Data latest day=2026-09-03; dashboard latest day=2026-09-02"):
         assert_fresh(label="SPD calls", source_date=pd.Timestamp("2026-09-03"), dashboard_date=pd.Timestamp("2026-09-02"))
+
+
+def test_freshness_cli_returns_zero_for_fresh_data(monkeypatch):
+    monkeypatch.setattr(check_data_freshness, "check_spd_calls_freshness", lambda: None)
+    monkeypatch.setattr(check_data_freshness, "check_crime_freshness", lambda: None)
+    monkeypatch.setattr(sys, "argv", ["check_data_freshness", "--dataset", "all"])
+    assert check_data_freshness.main() is None
+
+
+def test_freshness_cli_returns_two_only_for_stale_data(monkeypatch, capsys):
+    monkeypatch.setattr(check_data_freshness, "check_spd_calls_freshness", lambda: (_ for _ in ()).throw(StaleDataError("calls stale")))
+    monkeypatch.setattr(sys, "argv", ["check_data_freshness", "--dataset", "calls"])
+    with pytest.raises(SystemExit) as error:
+        check_data_freshness.main()
+    assert error.value.code == 2
+    assert "calls stale" in capsys.readouterr().err
+
+
+def test_freshness_cli_returns_one_for_checker_failures(monkeypatch, capsys):
+    monkeypatch.setattr(check_data_freshness, "check_crime_freshness", lambda: (_ for _ in ()).throw(ValueError("API response malformed")))
+    monkeypatch.setattr(sys, "argv", ["check_data_freshness", "--dataset", "crime"])
+    with pytest.raises(SystemExit) as error:
+        check_data_freshness.main()
+    assert error.value.code == 1
+    assert "Freshness check failed: API response malformed" in capsys.readouterr().err
+
+
+def test_combined_cli_reports_all_stale_datasets(monkeypatch, capsys):
+    monkeypatch.setattr(check_data_freshness, "check_spd_calls_freshness", lambda: (_ for _ in ()).throw(StaleDataError("calls stale")))
+    monkeypatch.setattr(check_data_freshness, "check_crime_freshness", lambda: (_ for _ in ()).throw(StaleDataError("crime stale")))
+    monkeypatch.setattr(sys, "argv", ["check_data_freshness", "--dataset", "all"])
+    with pytest.raises(SystemExit) as error:
+        check_data_freshness.main()
+    assert error.value.code == 2
+    assert "calls stale\ncrime stale" in capsys.readouterr().err
