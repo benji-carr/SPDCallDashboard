@@ -32,6 +32,11 @@ data/processed/response_time/
 # Downloaded or generated dashboard data
 data/raw/
 data/processed/geography/*.parquet
+
+# Rebuilt by the daily refresh and intentionally versioned
+!data/processed/geography/event_mcpp_lookup.parquet
+!data/processed/geography/crime_event_mcpp_lookup.parquet
+
 data/processed/geography/boundary_assignment_*.csv
 data/processed/geography/spd_dispatch_neighborhood_boundaries.geojson
 data/processed/geography/spd_mcpp_boundaries.geojson
