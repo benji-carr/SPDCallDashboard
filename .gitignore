@@ -31,9 +31,6 @@ data/processed/response_time/
 
 # Downloaded or generated dashboard data
 data/raw/
-data/processed/spd_calls.parquet
-data/processed/spd_calls_metadata.json
-data/processed/crime/
 data/processed/geography/*.parquet
 data/processed/geography/boundary_assignment_*.csv
 data/processed/geography/spd_dispatch_neighborhood_boundaries.geojson
