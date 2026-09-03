@@ -30,6 +30,8 @@ reports/
 data/backtest/
 artifacts/models/
 data/forecasts/
+data/monitoring/
+data/operations/
 
 # Temporary forecasting/test artifacts
 tests/_tmp/
