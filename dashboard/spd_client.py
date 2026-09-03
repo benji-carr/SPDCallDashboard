@@ -130,6 +130,31 @@ def fetch_spd_call_page(
     )
     return data
 
+
+def fetch_latest_spd_dashboard_record(
+    *,
+    timeout: float | tuple[float, float] = 10.0,
+    max_retries: int = 0,
+    retry_backoff_seconds: float = 1.0,
+    session: requests.Session | None = None,
+) -> dict[str, Any]:
+    """Fetch the newest source record that can appear in the calls dashboard."""
+    data, _ = _request_with_retries(
+        params={
+            "$select": "cad_event_original_time_queued,cad_event_number",
+            "$where": "cad_event_original_time_queued IS NOT NULL AND cad_event_number IS NOT NULL",
+            "$order": "cad_event_original_time_queued DESC",
+            "$limit": 1,
+        },
+        timeout=timeout,
+        max_retries=max_retries,
+        retry_backoff_seconds=retry_backoff_seconds,
+        session=session,
+    )
+    if not data:
+        raise ValueError("SPD Calls source returned no valid dashboard records")
+    return data[0]
+
 if __name__ == "__main__":
     records = fetch_spd_call_page(
         start_date="2025-01-01",

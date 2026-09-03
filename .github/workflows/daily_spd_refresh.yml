@@ -1,6 +1,7 @@
 name: Daily SPD dashboard refresh
 
 on:
+  workflow_call:
   workflow_dispatch:
   schedule:
     - cron: "17 11 * * *"

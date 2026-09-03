@@ -12,6 +12,7 @@ from dashboard.spd_snapshot import (
     save_spd_call_snapshot,
     load_spd_call_snapshot,
 )
+from scripts.dashboard.check_data_freshness import check_spd_calls_freshness
 
 
 DEFAULT_START_DATE = "2025-07-04"
@@ -171,10 +172,15 @@ def full_refresh_spd_call_snapshot(
     return snapshot_path, metadata_path
 
 
-if __name__ == "__main__":
+def main() -> None:
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s %(levelname)s %(message)s",
     )
 
     incremental_refresh_spd_call_snapshot()
+    check_spd_calls_freshness()
+
+
+if __name__ == "__main__":
+    main()
