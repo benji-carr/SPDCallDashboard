@@ -1,3 +1,5 @@
+import logging
+import time
 from typing import Any
 
 import requests
@@ -9,12 +11,107 @@ from dashboard.crime_query import (
 
 CRIME_DATA_ENDPOINT = ("https://data.seattle.gov/resource/tazs-3rd5.json")
 
+TRANSIENT_STATUS_CODES = {408, 425, 429, 500, 502, 503, 504}
+LOGGER = logging.getLogger(__name__)
+
+def _request_with_retries(
+    *,
+    params: dict[str, str | int],
+    timeout: float,
+    max_retries: int,
+    retry_backoff_seconds: float,
+) -> list[dict[str, Any]]:
+    if isinstance(max_retries, bool) or not isinstance(max_retries, int):
+        raise ValueError("max_retries must be an integer")
+
+    if max_retries < 0:
+        raise ValueError("max_retries cannot be negative")
+
+    if (
+        isinstance(retry_backoff_seconds, bool)
+        or not isinstance(retry_backoff_seconds, (int, float))
+    ):
+        raise ValueError("retry_backoff_seconds must be an integer or float")
+
+    if retry_backoff_seconds < 0:
+        raise ValueError("retry_backoff_seconds cannot be negative")
+
+    attempts = max_retries + 1
+
+    for attempt in range(1, attempts + 1):
+        try:
+            response = requests.get(
+                CRIME_DATA_ENDPOINT,
+                params=params,
+                timeout=timeout,
+            )
+
+            response.raise_for_status()
+
+            data = response.json()
+
+            if not isinstance(data, list):
+                raise ValueError("Top-level JSON is not a list")
+
+            if not all(isinstance(item, dict) for item in data):
+                raise ValueError(
+                    "Not all items in JSON response are dictionaries"
+                )
+
+            return data
+
+        except requests.HTTPError as exc:
+            status_code = (
+                exc.response.status_code
+                if exc.response is not None
+                else None
+            )
+
+            retryable = status_code in TRANSIENT_STATUS_CODES
+
+            if attempt >= attempts or not retryable:
+                raise
+
+            delay = retry_backoff_seconds * (2 ** (attempt - 1))
+
+            LOGGER.info(
+                "Retrying crime request after HTTP %s "
+                "on attempt %s/%s in %.2fs",
+                status_code,
+                attempt,
+                attempts,
+                delay,
+            )
+
+            time.sleep(delay)
+
+        except (requests.ConnectionError, requests.Timeout) as exc:
+            if attempt >= attempts:
+                raise
+
+            delay = retry_backoff_seconds * (2 ** (attempt - 1))
+
+            LOGGER.info(
+                "Retrying crime request after %s "
+                "on attempt %s/%s in %.2fs",
+                exc.__class__.__name__,
+                attempt,
+                attempts,
+                delay,
+            )
+
+            time.sleep(delay)
+
+    raise RuntimeError("Crime request retry loop exited unexpectedly")
+
 def fetch_crime_page(
     start_date: str,
     limit: int = 1000,
     offset: int = 0,
     timeout: float = 10.0,
     date_column: str = "offense_date",
+    max_retries: int = 0,
+    retry_backoff_seconds: float = 1.0,
 ) -> list[dict[str, Any]]:
     if isinstance(timeout, bool) or not isinstance(timeout, (int, float)):
         raise ValueError("timeout must be an integer or float")
@@ -29,27 +126,19 @@ def fetch_crime_page(
         date_column=date_column,
     )
 
-    response = requests.get(
-        CRIME_DATA_ENDPOINT,
+    return _request_with_retries(
         params=params,
         timeout=timeout,
+        max_retries=max_retries,
+        retry_backoff_seconds=retry_backoff_seconds,
     )
-
-    response.raise_for_status()
-    data = response.json()
-
-    if not isinstance(data, list):
-        raise ValueError("Top-level JSON is not a list")
-
-    if not all(isinstance(item, dict) for item in data):
-        raise ValueError("Not all items in JSON response are dictionaries")
-
-    return data
 
 
 def fetch_latest_crime_dashboard_record(
     *,
     timeout: float = 10.0,
+    max_retries: int = 0,
+    retry_backoff_seconds: float = 1.0,
 ) -> dict[str, Any]:
     """Fetch the newest source record that can appear in the crime dashboard."""
     if isinstance(timeout, bool) or not isinstance(timeout, (int, float)):
@@ -57,18 +146,21 @@ def fetch_latest_crime_dashboard_record(
     if timeout <= 0:
         raise ValueError("timeout must be larger than zero")
 
-    response = requests.get(
-        CRIME_DATA_ENDPOINT,
+    data = _request_with_retries(
         params={
             "$select": "offense_date,offense_id",
-            "$where": "offense_date IS NOT NULL AND offense_id IS NOT NULL",
+            "$where": (
+                "offense_date IS NOT NULL "
+                "AND offense_id IS NOT NULL"
+            ),
             "$order": "offense_date DESC, offense_id ASC",
             "$limit": 1,
         },
         timeout=timeout,
+        max_retries=max_retries,
+        retry_backoff_seconds=retry_backoff_seconds,
     )
-    response.raise_for_status()
-    data = response.json()
+
     if not isinstance(data, list) or not all(isinstance(item, dict) for item in data):
         raise ValueError("Crime source response must be a list of objects")
     if not data:

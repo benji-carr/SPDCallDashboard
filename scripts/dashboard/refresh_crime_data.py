@@ -12,6 +12,7 @@ from dashboard.crime_snapshot import (
     save_crime_snapshot,
 )
 from scripts.dashboard.check_data_freshness import check_crime_freshness
+from dashboard.crime_client import fetch_latest_crime_dashboard_record
 
 
 CRIME_OUTPUT_DIR = Path("data/processed/crime")
@@ -25,6 +26,8 @@ DEFAULT_MAX_PAGES = None
 DEFAULT_TIMEOUT = 60.0
 DEFAULT_ROLLING_WINDOW_DAYS = 365
 DEFAULT_OVERLAP_DAYS = 30
+DEFAULT_MAX_RETRIES = 3
+DEFAULT_RETRY_BACKOFF_SECONDS = 1.0
 
 
 def get_default_start_date(
@@ -69,6 +72,8 @@ def full_refresh_crime_snapshot(
     timeout: float = DEFAULT_TIMEOUT,
     output_directory: str | Path = CRIME_OUTPUT_DIR,
     date_column: str = EVENT_DATE_COLUMN,
+    max_retries: int = DEFAULT_MAX_RETRIES,
+    retry_backoff_seconds: float = DEFAULT_RETRY_BACKOFF_SECONDS,
 ) -> tuple[Path, Path]:
     validate_positive_int(page_size, "page_size")
     validate_timeout(timeout)
@@ -88,6 +93,8 @@ def full_refresh_crime_snapshot(
         max_pages=max_pages,
         timeout=timeout,
         date_column=date_column,
+        max_retries=max_retries,
+        retry_backoff_seconds=retry_backoff_seconds,
     )
 
     if EVENT_DATE_COLUMN not in df.columns:
@@ -123,6 +130,8 @@ def incremental_refresh_crime_snapshot(
     overlap_days: int = DEFAULT_OVERLAP_DAYS,
     page_size: int = DEFAULT_PAGE_SIZE,
     timeout: float = DEFAULT_TIMEOUT,
+    max_retries: int = DEFAULT_MAX_RETRIES,
+    retry_backoff_seconds: float = DEFAULT_RETRY_BACKOFF_SECONDS,
 ) -> tuple[Path, Path]:
     validate_positive_int(rolling_window_days, "rolling_window_days")
     validate_nonnegative_int(overlap_days, "overlap_days")
@@ -150,6 +159,8 @@ def incremental_refresh_crime_snapshot(
             timeout=timeout,
             output_directory=output_directory,
             date_column=EVENT_DATE_COLUMN,
+            max_retries=max_retries,
+            retry_backoff_seconds=retry_backoff_seconds,
         )
 
     missing_key_columns = [
@@ -213,6 +224,8 @@ def incremental_refresh_crime_snapshot(
         max_pages=None,
         timeout=timeout,
         date_column=REFRESH_DATE_COLUMN,
+        max_retries=max_retries,
+        retry_backoff_seconds=retry_backoff_seconds,
     )
 
     logging.info("Fetched %s recent SPD Crime rows", len(new_df))
@@ -290,7 +303,14 @@ def main() -> None:
     )
 
     incremental_refresh_crime_snapshot()
-    check_crime_freshness()
+
+    check_crime_freshness(
+        fetch_source=lambda: fetch_latest_crime_dashboard_record(
+            timeout=DEFAULT_TIMEOUT,
+            max_retries=DEFAULT_MAX_RETRIES,
+            retry_backoff_seconds=DEFAULT_RETRY_BACKOFF_SECONDS,
+        )
+    )
 
 
 if __name__ == "__main__":
