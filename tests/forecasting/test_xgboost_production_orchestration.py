@@ -1,7 +1,7 @@
 import json
 import shutil
 import uuid
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
@@ -14,7 +14,9 @@ from forecasting.production.data_refresh import (
     validate_source_schema, validate_target_panel_for_artifact,
 )
 from forecasting.production.inference import generate_forecast
-from forecasting.production.orchestration import ProductionRunLock, run_daily_pipeline
+from forecasting.production.orchestration import (
+    PRODUCTION_RUN_LOCK_STALE_AGE_SECONDS, ProductionRunLock, run_daily_pipeline,
+)
 from forecasting.production.xgboost import train_production_model
 
 
@@ -121,6 +123,8 @@ def test_freshness_gate_and_lock_release_after_failure():
         local = root / "panel.parquet"; panel.to_parquet(local, index=False)
         with pytest.raises(ValueError, match="source_too_stale"):
             run_daily_pipeline(artifact_dir=artifact, target_panel_path=local, operations_root=root / "operations", skip_source_refresh=True, max_source_age_days=0)
+        production_lock = root / "operations" / "spd_neighborhood_xgboost" / "v1" / ".daily_pipeline.lock"
+        assert not production_lock.exists()
         lock = ProductionRunLock(root / "lock")
         lock.acquire()
         with pytest.raises(RuntimeError, match="holds lock"):
@@ -130,6 +134,92 @@ def test_freshness_gate_and_lock_release_after_failure():
         second.acquire()
         second.release()
     finally: shutil.rmtree(root, ignore_errors=True)
+
+
+def test_production_run_lock_records_metadata_and_releases():
+    root = Path("tests") / "_tmp" / f"orchestration_lock_{uuid.uuid4().hex}"
+    try:
+        lock = ProductionRunLock(root / "lock", owner_id="execution-123")
+        lock.acquire()
+        payload = json.loads((root / "lock").read_text(encoding="utf-8"))
+        assert payload["pid"] > 0
+        assert payload["owner_id"] == "execution-123"
+        assert payload["hostname"]
+        assert datetime.fromisoformat(payload["acquired_at_utc"]).tzinfo is not None
+        lock.release()
+        assert not (root / "lock").exists()
+    finally:
+        shutil.rmtree(root, ignore_errors=True)
+
+
+def test_second_active_lock_acquisition_fails():
+    root = Path("tests") / "_tmp" / f"orchestration_lock_{uuid.uuid4().hex}"
+    try:
+        first = ProductionRunLock(root / "lock", owner_id="first")
+        first.acquire()
+        with pytest.raises(RuntimeError, match="holds lock"):
+            ProductionRunLock(root / "lock", owner_id="second").acquire()
+    finally:
+        first.release()
+        shutil.rmtree(root, ignore_errors=True)
+
+
+def test_stale_lock_is_recovered(caplog):
+    root = Path("tests") / "_tmp" / f"orchestration_lock_{uuid.uuid4().hex}"
+    try:
+        lock_path = root / "lock"
+        acquired_at = datetime(2026, 1, 1, tzinfo=timezone.utc)
+        recovered_at = acquired_at + timedelta(seconds=PRODUCTION_RUN_LOCK_STALE_AGE_SECONDS + 5)
+        lock_path.parent.mkdir(parents=True, exist_ok=True)
+        lock_path.write_text(json.dumps({"pid": 111, "acquired_at_utc": acquired_at.isoformat(), "owner_id": "abandoned", "hostname": "worker-a"}), encoding="utf-8")
+        lock = ProductionRunLock(lock_path, owner_id="retry", now_provider=lambda: recovered_at)
+        with caplog.at_level("WARNING"):
+            lock.acquire()
+        payload = json.loads(lock_path.read_text(encoding="utf-8"))
+        assert payload["owner_id"] == "retry"
+        assert "Recovered stale production run lock" in caplog.text
+    finally:
+        lock.release()
+        shutil.rmtree(root, ignore_errors=True)
+
+
+def test_malformed_lock_fails_closed():
+    root = Path("tests") / "_tmp" / f"orchestration_lock_{uuid.uuid4().hex}"
+    try:
+        lock_path = root / "lock"
+        lock_path.parent.mkdir(parents=True, exist_ok=True)
+        lock_path.write_text("{not-json", encoding="utf-8")
+        with pytest.raises(RuntimeError, match="failing closed"):
+            ProductionRunLock(lock_path).acquire()
+    finally:
+        shutil.rmtree(root, ignore_errors=True)
+
+
+def test_stale_lock_recovery_still_fails_if_another_process_wins(monkeypatch):
+    root = Path("tests") / "_tmp" / f"orchestration_lock_{uuid.uuid4().hex}"
+    try:
+        lock_path = root / "lock"
+        acquired_at = datetime(2026, 1, 1, tzinfo=timezone.utc)
+        recovered_at = acquired_at + timedelta(seconds=PRODUCTION_RUN_LOCK_STALE_AGE_SECONDS + 5)
+        lock_path.parent.mkdir(parents=True, exist_ok=True)
+        lock_path.write_text(json.dumps({"pid": 111, "acquired_at_utc": acquired_at.isoformat(), "owner_id": "abandoned", "hostname": "worker-a"}), encoding="utf-8")
+        lock = ProductionRunLock(lock_path, owner_id="retry", now_provider=lambda: recovered_at)
+        calls = {"count": 0}
+
+        def fake_write():
+            calls["count"] += 1
+            if calls["count"] == 1:
+                raise FileExistsError
+            lock_path.write_text(json.dumps({"pid": 222, "acquired_at_utc": recovered_at.isoformat(), "owner_id": "winner", "hostname": "worker-b"}), encoding="utf-8")
+            raise FileExistsError
+
+        monkeypatch.setattr(lock, "_write_lockfile", fake_write)
+        with pytest.raises(RuntimeError, match="winner"):
+            lock.acquire()
+        payload = json.loads(lock_path.read_text(encoding="utf-8"))
+        assert payload["owner_id"] == "winner"
+    finally:
+        shutil.rmtree(root, ignore_errors=True)
 
 
 def test_manifest_is_completed_only_after_outputs_and_never_trains(monkeypatch):
