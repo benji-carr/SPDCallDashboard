@@ -5,6 +5,7 @@ import hashlib
 import json
 import logging
 import os
+import socket
 import shutil
 import time
 import uuid
@@ -26,26 +27,105 @@ from forecasting.production.xgboost import MODEL_NAME, MODEL_VERSION, file_sha25
 LOGGER = logging.getLogger(__name__)
 
 
+PRODUCTION_RUN_LOCK_STALE_AGE_SECONDS = 3600
+
+
+def _utcnow() -> datetime:
+    return datetime.now(timezone.utc)
+
+
 class ProductionRunLock:
-    """Atomic lock file; stale locks are left for an operator to inspect."""
-    def __init__(self, path: Path):
+    """Atomic lock file with conservative stale-lock recovery for ACA job retries.
+
+    The Azure Container Apps Job replica timeout is 1200 seconds.  We default the
+    stale threshold to 3600 seconds so a normally running production job cannot be
+    classified as stale before the platform timeout has already terminated it.
+    """
+    def __init__(
+        self, path: Path, *, stale_age_seconds: int = PRODUCTION_RUN_LOCK_STALE_AGE_SECONDS,
+        owner_id: str | None = None, now_provider=_utcnow,
+    ):
         self.path = path
+        self.stale_age_seconds = stale_age_seconds
+        self.owner_id = owner_id or uuid.uuid4().hex
+        self.now_provider = now_provider
         self.acquired = False
 
     def acquire(self) -> None:
         self.path.parent.mkdir(parents=True, exist_ok=True)
         try:
-            with self.path.open("x", encoding="utf-8") as handle:
-                json.dump({"pid": os.getpid(), "acquired_at_utc": datetime.now(timezone.utc).isoformat()}, handle)
-        except FileExistsError as exc:
-            details = self.path.read_text(encoding="utf-8") if self.path.exists() else "unavailable"
-            raise RuntimeError(f"Another production run holds lock {self.path}: {details}") from exc
+            self._write_lockfile()
+        except FileExistsError:
+            self._recover_stale_lock_if_safe()
+            try:
+                self._write_lockfile()
+            except FileExistsError as exc:
+                details = self.path.read_text(encoding="utf-8") if self.path.exists() else "unavailable"
+                raise RuntimeError(f"Another production run holds lock {self.path}: {details}") from exc
         self.acquired = True
 
     def release(self) -> None:
         if self.acquired and self.path.exists():
             self.path.unlink()
         self.acquired = False
+
+    def _write_lockfile(self) -> None:
+        with self.path.open("x", encoding="utf-8") as handle:
+            json.dump(self._lock_payload(), handle)
+
+    def _lock_payload(self) -> dict:
+        return {
+            "pid": os.getpid(),
+            "acquired_at_utc": self.now_provider().isoformat(),
+            "owner_id": self.owner_id,
+            "hostname": socket.gethostname(),
+        }
+
+    def _recover_stale_lock_if_safe(self) -> None:
+        existing = self._read_existing_lock()
+        age_seconds = (self.now_provider() - existing["acquired_at"]).total_seconds()
+        if age_seconds < 0 or age_seconds < self.stale_age_seconds:
+            details = self.path.read_text(encoding="utf-8") if self.path.exists() else "unavailable"
+            raise RuntimeError(f"Another production run holds lock {self.path}: {details}")
+        LOGGER.warning(
+            "Recovered stale production run lock %s owner_id=%s pid=%s acquired_at_utc=%s age_seconds=%.3f threshold_seconds=%s",
+            self.path,
+            existing["owner_id"],
+            existing["pid"],
+            existing["acquired_at_utc"],
+            age_seconds,
+            self.stale_age_seconds,
+        )
+        try:
+            self.path.unlink()
+        except FileNotFoundError:
+            return
+
+    def _read_existing_lock(self) -> dict:
+        try:
+            payload = json.loads(self.path.read_text(encoding="utf-8"))
+        except FileNotFoundError as exc:
+            raise RuntimeError(f"Another production run holds lock {self.path}: unavailable") from exc
+        except (OSError, json.JSONDecodeError) as exc:
+            raise RuntimeError(
+                f"Another production run holds lock {self.path}: malformed or unreadable lock file; failing closed."
+            ) from exc
+        if not isinstance(payload, dict):
+            raise RuntimeError(f"Another production run holds lock {self.path}: malformed lock payload; failing closed.")
+        pid = payload.get("pid")
+        acquired_at_utc = payload.get("acquired_at_utc")
+        owner_id = payload.get("owner_id")
+        if not isinstance(pid, int) or not isinstance(acquired_at_utc, str) or not isinstance(owner_id, str) or not owner_id:
+            raise RuntimeError(f"Another production run holds lock {self.path}: malformed lock payload; failing closed.")
+        try:
+            acquired_at = datetime.fromisoformat(acquired_at_utc)
+        except ValueError as exc:
+            raise RuntimeError(
+                f"Another production run holds lock {self.path}: malformed acquired_at_utc; failing closed."
+            ) from exc
+        if acquired_at.tzinfo is None:
+            raise RuntimeError(f"Another production run holds lock {self.path}: naive acquired_at_utc; failing closed.")
+        return {"pid": pid, "owner_id": owner_id, "acquired_at_utc": acquired_at_utc, "acquired_at": acquired_at}
 
 
 def _stable_json(payload: dict) -> str:
@@ -80,8 +160,8 @@ def run_daily_pipeline(
     execution_id = uuid.uuid4().hex
     phase_statuses: list[dict] = []
     operations_base = Path(operations_root) / MODEL_NAME / MODEL_VERSION
-    lock = ProductionRunLock(operations_base / ".daily_pipeline.lock")
-    manifest: dict = {"execution_id": execution_id, "started_at_utc": datetime.now(timezone.utc).isoformat(), "overall_status": "failed", "warnings": [], "errors": [], "phase_statuses": phase_statuses}
+    lock = ProductionRunLock(operations_base / ".daily_pipeline.lock", owner_id=execution_id)
+    manifest: dict = {"execution_id": execution_id, "started_at_utc": _utcnow().isoformat(), "overall_status": "failed", "warnings": [], "errors": [], "phase_statuses": phase_statuses}
 
     def phase(name: str, action):
         start = time.monotonic()
@@ -135,7 +215,7 @@ def run_daily_pipeline(
         manifest["operations"] = {"missed_forecast_dates": missed_dates, "n_missed_forecast_dates": len(missed_dates), "previous_genuine_forecast_target_date": None if previous is None else previous.date().isoformat()}
         logical_run_id = _logical_run_id(artifact, complete, refresh["target_panel_sha256"])
         manifest["logical_run_id"] = logical_run_id
-        manifest["completed_at_utc"] = datetime.now(timezone.utc).isoformat()
+        manifest["completed_at_utc"] = _utcnow().isoformat()
         manifest["elapsed_seconds"] = round(time.monotonic() - started, 6)
         manifest["overall_status"] = "completed"
         final_dir = operations_base / "runs" / f"logical_run_id={logical_run_id}"
@@ -153,7 +233,7 @@ def run_daily_pipeline(
         return {"manifest": manifest, "run_dir": final_dir, "idempotent": False, "forecast": result, "monitoring": monitoring}
     except Exception as exc:
         manifest["errors"].append(str(exc))
-        manifest["completed_at_utc"] = datetime.now(timezone.utc).isoformat()
+        manifest["completed_at_utc"] = _utcnow().isoformat()
         manifest["elapsed_seconds"] = round(time.monotonic() - started, 6)
         # Failure records are deliberately separate from completed logical runs.
         failure_dir = operations_base / "failures"
