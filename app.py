@@ -1081,6 +1081,11 @@ def create_app() -> Dash:
                             },
                         ),
 
+                        dcc.Store(
+                            id="crime-fullscreen-figure-store",
+                            data=None,
+                        ),
+
                         html.Div(
                             children=[
                                 html.Div(
@@ -1191,6 +1196,13 @@ def create_app() -> Dash:
                             children=[
                                 html.Div(
                                     children=[
+                                        html.Button(
+                                            "↗",
+                                            id="crime-expand-map-button",
+                                            className="expand-button",
+                                            title="Expand crime map",
+                                        ),
+
                                         dcc.Loading(
                                             children=[
                                                 html.Div(
@@ -1213,6 +1225,13 @@ def create_app() -> Dash:
 
                                 html.Div(
                                     children=[
+                                        html.Button(
+                                            "↗",
+                                            id="crime-expand-daily-button",
+                                            className="expand-button",
+                                            title="Expand crime daily chart",
+                                        ),
+
                                         dcc.Loading(
                                             children=[
                                                 dcc.Graph(
@@ -1378,6 +1397,38 @@ def create_app() -> Dash:
                                 "minWidth": "0",
                                 "overflow": "hidden",
                             },
+                        ),
+
+                        html.Div(
+                            children=[
+                                html.Div(
+                                    children=[
+                                        html.Div(
+                                            id="crime-fullscreen-title",
+                                            className="fullscreen-title",
+                                        ),
+                                        html.Button(
+                                            "×",
+                                            id="crime-close-fullscreen-button",
+                                            className="close-fullscreen-button",
+                                            title="Close fullscreen view",
+                                        ),
+                                    ],
+                                    className="fullscreen-header",
+                                ),
+
+                                dcc.Graph(
+                                    id="crime-fullscreen-figure",
+                                    className="fullscreen-graph",
+                                    config={"responsive": True},
+                                    style={
+                                        "height": "100%",
+                                        "width": "100%",
+                                    },
+                                ),
+                            ],
+                            id="crime-fullscreen-overlay",
+                            className="fullscreen-overlay hidden",
                         ),
                     ],
                     className="app-shell",
@@ -1689,6 +1740,31 @@ def create_app() -> Dash:
         raise PreventUpdate
 
     @app.callback(
+        Output("crime-fullscreen-figure-store", "data"),
+        Input("crime-expand-map-button", "n_clicks"),
+        Input("crime-expand-daily-button", "n_clicks"),
+        Input("crime-close-fullscreen-button", "n_clicks"),
+        prevent_initial_call=True,
+    )
+    def update_crime_fullscreen_store(
+        map_clicks,
+        daily_clicks,
+        close_clicks,
+    ):
+        triggered_id = ctx.triggered_id
+
+        if triggered_id == "crime-close-fullscreen-button":
+            return None
+
+        if triggered_id == "crime-expand-map-button":
+            return "map"
+
+        if triggered_id == "crime-expand-daily-button":
+            return "daily"
+
+        raise PreventUpdate
+
+    @app.callback(
         Output("fullscreen-overlay", "className"),
         Output("fullscreen-title", "children"),
         Output("fullscreen-figure", "figure"),
@@ -1751,6 +1827,75 @@ def create_app() -> Dash:
             )
 
             return "fullscreen-overlay", "Call volume vs. response time", fig
+
+        raise PreventUpdate
+
+    @app.callback(
+        Output("crime-fullscreen-overlay", "className"),
+        Output("crime-fullscreen-title", "children"),
+        Output("crime-fullscreen-figure", "figure"),
+        Input("crime-fullscreen-figure-store", "data"),
+        Input("crime-category-filter", "value"),
+        Input("crime-daily-visible-range-store", "data"),
+        Input("crime-legend-toggle", "value"),
+        Input("crime-point-subcategory-filter", "value"),
+        Input("crime-point-neighborhood-filter", "value"),
+        Input("crime-point-text-filter", "value"),
+    )
+    def update_crime_fullscreen_overlay(
+        fullscreen_target,
+        selected_category_value,
+        range_store_data,
+        legend_values,
+        selected_subcategories,
+        selected_neighborhoods,
+        text_filter,
+    ):
+        if legend_values is None:
+            legend_values = []
+
+        if fullscreen_target is None:
+            return "fullscreen-overlay hidden", "", {}
+
+        if fullscreen_target == "map":
+            point_start_date, point_end_date = get_range_from_store(
+                range_store_data=range_store_data,
+                default_start=default_crime_start,
+                default_end=default_crime_end,
+            )
+
+            point_filters = {
+                "offense_sub_categories": selected_subcategories or [],
+                "mcpp_neighborhoods": selected_neighborhoods or [],
+                "text": text_filter or "",
+            }
+
+            show_colorbar = "map_colorbar" in legend_values
+
+            fig, visible_point_count = build_crime_map_figure(
+                selected_category_value=selected_category_value,
+                point_start_date=point_start_date,
+                point_end_date=point_end_date,
+                show_colorbar=show_colorbar,
+                point_filters=point_filters,
+            )
+
+            title = (
+                f"Map view | {point_start_date} to {point_end_date}"
+                f" | {visible_point_count:,} visible points"
+            )
+
+            return "fullscreen-overlay", title, fig
+
+        if fullscreen_target == "daily":
+            show_legend = "daily" in legend_values
+
+            fig = cached_crime_daily_figure(
+                selected_category_value=selected_category_value,
+                show_legend=show_legend,
+            )
+
+            return "fullscreen-overlay", "Daily crime events", fig
 
         raise PreventUpdate
 
