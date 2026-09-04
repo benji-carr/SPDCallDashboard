@@ -244,6 +244,12 @@ def make_daily_figure(
                 font=dict(size=10),
                 buttons=[
                     dict(
+                        count=1,
+                        label="1D",
+                        step="day",
+                        stepmode="backward",
+                    ),
+                    dict(
                         count=6,
                         label="1W",
                         step="day",
