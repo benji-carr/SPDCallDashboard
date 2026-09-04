@@ -65,6 +65,41 @@ and validates the target panel, evaluates real matured forecasts, creates at
 most one next-day forecast, then writes one final monitoring report. It never
 trains, retunes, or promotes a model.
 
+For Azure Container Apps Jobs that should emit an operational email after each
+run, use `scripts/forecasting/run_xgboost_daily_pipeline_with_notifications.py`.
+It wraps the same daily pipeline, preserves the true pipeline exit status, and
+appends the read-only `show_xgboost_status` report text to success or failure
+notifications when email is enabled.
+
+### Production Email Notifications
+
+Notifications use Python's standard-library SMTP client so the transport stays
+isolated from forecasting logic and can be injected in tests. All notification
+configuration comes from environment variables:
+
+```text
+SPD_XGBOOST_NOTIFICATION_ENABLED
+SPD_XGBOOST_SMTP_HOST
+SPD_XGBOOST_SMTP_PORT
+SPD_XGBOOST_SMTP_USERNAME
+SPD_XGBOOST_SMTP_PASSWORD
+SPD_XGBOOST_EMAIL_FROM
+SPD_XGBOOST_EMAIL_TO
+```
+
+Optional environment variables:
+
+```text
+SPD_XGBOOST_SMTP_STARTTLS
+SPD_XGBOOST_SMTP_TIMEOUT_SECONDS
+SPD_XGBOOST_EMAIL_SUBJECT_PREFIX
+```
+
+If notifications are enabled but required variables are missing, the wrapper
+logs a clear notification error. A successful forecast run still exits
+successfully even if email delivery fails; a failed forecast run still exits
+non-zero even if notification delivery or status generation also fails.
+
 ## Data Freshness
 
 The refresh summary records a canonical target-panel SHA-256 and source age.
