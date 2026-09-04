@@ -16,6 +16,8 @@ def load_crime_dataset(
     max_pages: int | None = None,
     timeout: float = 10.0,
     date_column: str = "offense_date",
+    max_retries: int = 0,
+    retry_backoff_seconds: float = 1.0,
 ) -> pd.DataFrame:
     if isinstance(page_size, bool) or not isinstance(page_size, int):
         raise ValueError("page_size must be an integer")
@@ -45,6 +47,8 @@ def load_crime_dataset(
             offset=offset,
             timeout=timeout,
             date_column=date_column,
+            max_retries=max_retries,
+            retry_backoff_seconds=retry_backoff_seconds,
         )
 
         all_records.extend(records)

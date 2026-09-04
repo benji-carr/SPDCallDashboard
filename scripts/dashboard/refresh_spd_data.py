@@ -14,6 +14,8 @@ from dashboard.spd_snapshot import (
 )
 from scripts.dashboard.check_data_freshness import check_spd_calls_freshness
 
+from dashboard.spd_client import fetch_latest_spd_dashboard_record
+
 
 DEFAULT_START_DATE = "2025-07-04"
 TIME_COLUMN = "cad_event_original_time_queued"
@@ -23,6 +25,8 @@ DEFAULT_MAX_PAGES = None
 DEFAULT_TIMEOUT = 60.0
 DEFAULT_ROLLING_WINDOW_DAYS = 365
 DEFAULT_OVERLAP_DAYS = 14
+DEFAULT_MAX_RETRIES = 3
+DEFAULT_RETRY_BACKOFF_SECONDS = 1.0
 DEFAULT_OUTPUT_DIRECTORY = Path("data/processed")
 
 
@@ -32,6 +36,8 @@ def incremental_refresh_spd_call_snapshot(
     overlap_days: int = DEFAULT_OVERLAP_DAYS,
     page_size: int = DEFAULT_PAGE_SIZE,
     timeout: float = DEFAULT_TIMEOUT,
+    max_retries: int = DEFAULT_MAX_RETRIES,
+    retry_backoff_seconds: float = DEFAULT_RETRY_BACKOFF_SECONDS,
 ) -> tuple[Path, Path]:
     output_directory = Path(output_directory)
 
@@ -78,6 +84,8 @@ def incremental_refresh_spd_call_snapshot(
         page_size=page_size,
         max_pages=None,
         timeout=timeout,
+        max_retries=max_retries,
+        retry_backoff_seconds=retry_backoff_seconds,
     )
 
     logging.info("Fetched %s recent SPD rows", len(new_df))
@@ -179,8 +187,14 @@ def main() -> None:
     )
 
     incremental_refresh_spd_call_snapshot()
-    check_spd_calls_freshness()
 
+    check_spd_calls_freshness(
+        fetch_source=lambda: fetch_latest_spd_dashboard_record(
+            timeout=DEFAULT_TIMEOUT,
+            max_retries=DEFAULT_MAX_RETRIES,
+            retry_backoff_seconds=DEFAULT_RETRY_BACKOFF_SECONDS,
+        )
+    )
 
 if __name__ == "__main__":
     main()
