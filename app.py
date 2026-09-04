@@ -231,6 +231,19 @@ def extract_daily_visible_date_range(
     if start_date is None or end_date is None:
         return default_start, default_end
 
+    start_timestamp = pd.to_datetime(start_value, errors="coerce")
+    end_timestamp = pd.to_datetime(end_value, errors="coerce")
+
+    if (
+        pd.notna(start_timestamp)
+        and pd.notna(end_timestamp)
+        and end_timestamp - start_timestamp == pd.Timedelta(days=1)
+    ):
+        # Plotly's native 1D control yields a 24-hour viewport ending on the
+        # selected day. Map filters are inclusive calendar dates, so retain
+        # only that ending date rather than both viewport boundaries.
+        return end_date, end_date
+
     return start_date, end_date
 
 
