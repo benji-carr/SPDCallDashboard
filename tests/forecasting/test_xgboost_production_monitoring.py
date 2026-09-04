@@ -9,7 +9,7 @@ import pytest
 
 from forecasting.features.xgboost import build_xgboost_feature_panel, prepare_target_panel
 from forecasting.production.inference import generate_forecast
-from forecasting.production.monitoring import actuals_sha256, calculate_population_stability_index, discover_forecast_snapshots, run_monitoring
+from forecasting.production.monitoring import MONITORING_REPORT_SCHEMA_VERSION, actuals_sha256, calculate_population_stability_index, discover_forecast_snapshots, run_monitoring
 from forecasting.production.xgboost import file_sha256, train_production_model
 
 
@@ -374,5 +374,119 @@ def test_max_data_age_days_is_recorded_and_enforced():
                 max_data_age_days=1,
                 update_latest=False,
             )
+    finally:
+        shutil.rmtree(root, ignore_errors=True)
+
+
+def test_monitoring_reports_are_idempotent_per_seattle_as_of_date_and_advance_daily():
+    root, target_panel, artifact_dir, forecasts_root = make_environment()
+    try:
+        actuals = target_panel.loc[target_panel["target_date"] <= pd.Timestamp("2024-05-02")].copy()
+        first = run_monitoring(
+            artifact_dir=artifact_dir,
+            target_panel=actuals,
+            forecasts_root=forecasts_root,
+            monitoring_root=root / "monitoring",
+            as_of_date="2024-05-10",
+            update_latest=False,
+        )
+        second = run_monitoring(
+            artifact_dir=artifact_dir,
+            target_panel=actuals,
+            forecasts_root=forecasts_root,
+            monitoring_root=root / "monitoring",
+            as_of_date=pd.Timestamp("2024-05-10"),
+            update_latest=False,
+        )
+        next_day = run_monitoring(
+            artifact_dir=artifact_dir,
+            target_panel=actuals,
+            forecasts_root=forecasts_root,
+            monitoring_root=root / "monitoring",
+            as_of_date="2024-05-11",
+            update_latest=False,
+        )
+
+        assert first["report_dir"] == second["report_dir"]
+        assert first["summary"] == second["summary"]
+        assert next_day["report_dir"] != first["report_dir"]
+        assert next_day["summary"]["source_data_age_days"] == first["summary"]["source_data_age_days"] + 1
+        assert first["summary"]["monitoring_as_of_date"] == "2024-05-10"
+        assert first["summary"]["monitoring_report_schema_version"] == MONITORING_REPORT_SCHEMA_VERSION
+    finally:
+        shutil.rmtree(root, ignore_errors=True)
+
+
+def test_persisted_forecast_inventory_is_portable_across_forecasts_roots():
+    root, target_panel, artifact_dir, forecasts_root = make_environment()
+    try:
+        actuals = target_panel.loc[target_panel["target_date"] <= pd.Timestamp("2024-05-02")].copy()
+        first = run_monitoring(
+            artifact_dir=artifact_dir,
+            target_panel=actuals,
+            forecasts_root=forecasts_root,
+            monitoring_root=root / "monitoring_a",
+            as_of_date="2024-05-10",
+            update_latest=False,
+        )
+        relocated_forecasts_root = root / "relocated_forecasts"
+        shutil.copytree(forecasts_root, relocated_forecasts_root)
+        second = run_monitoring(
+            artifact_dir=artifact_dir,
+            target_panel=actuals,
+            forecasts_root=relocated_forecasts_root,
+            monitoring_root=root / "monitoring_b",
+            as_of_date="2024-05-10",
+            update_latest=False,
+        )
+
+        persisted_first = pd.read_parquet(first["report_dir"] / "forecast_inventory.parquet")
+        persisted_second = pd.read_parquet(second["report_dir"] / "forecast_inventory.parquet")
+        assert "snapshot_dir" in first["forecast_inventory"]
+        assert "snapshot_dir" not in persisted_first
+        assert "snapshot_relpath" in persisted_first
+        assert not persisted_first["snapshot_relpath"].str.contains(str(forecasts_root.resolve()), regex=False).any()
+        pd.testing.assert_frame_equal(persisted_first, persisted_second)
+    finally:
+        shutil.rmtree(root, ignore_errors=True)
+
+
+def test_new_monitoring_schema_does_not_overwrite_legacy_report_id():
+    root, target_panel, artifact_dir, forecasts_root = make_environment()
+    try:
+        actuals = target_panel.loc[target_panel["target_date"] <= pd.Timestamp("2024-05-02")].copy()
+        first = run_monitoring(
+            artifact_dir=artifact_dir,
+            target_panel=actuals,
+            forecasts_root=forecasts_root,
+            monitoring_root=root / "monitoring",
+            as_of_date="2024-05-10",
+            update_latest=False,
+        )
+        legacy_payload = {
+            "artifact_run_id": first["artifact"]["metadata"]["artifact_run_id"],
+            "forecast_ids": sorted(first["forecast_inventory"]["forecast_id"].tolist()),
+            "latest_actual_date": "2024-05-02",
+            "latest_evaluation_fingerprints": first["latest_evaluations"][["forecast_id", "actuals_sha256"]].astype(str).values.tolist(),
+        }
+        legacy_run_id = __import__("hashlib").sha256(
+            json.dumps(legacy_payload, sort_keys=True).encode("utf-8")
+        ).hexdigest()[:20]
+        legacy_report = first["monitoring_root"] / "reports" / f"run_id={legacy_run_id}"
+        legacy_report.mkdir(parents=True)
+        sentinel = legacy_report / "legacy.txt"
+        sentinel.write_text("preserve me", encoding="utf-8")
+
+        rerun = run_monitoring(
+            artifact_dir=artifact_dir,
+            target_panel=actuals,
+            forecasts_root=forecasts_root,
+            monitoring_root=root / "monitoring",
+            as_of_date="2024-05-10",
+            update_latest=False,
+        )
+
+        assert rerun["report_dir"].name != f"run_id={legacy_run_id}"
+        assert sentinel.read_text(encoding="utf-8") == "preserve me"
     finally:
         shutil.rmtree(root, ignore_errors=True)

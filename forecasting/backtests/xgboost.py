@@ -11,9 +11,6 @@ from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import OneHotEncoder
 from xgboost import XGBRegressor
 
-from forecasting.backtests.sarima import (
-    evaluate_forecast,
-)
 from forecasting.features.xgboost import (
     XGB_FEATURE_SETS,
     build_xgboost_feature_panel,
@@ -553,6 +550,10 @@ def run_sequential_fold(
     Lag and rolling features for target date t use actual target
     observations available through t-1.
     """
+
+    from forecasting.backtests.sarima import (
+        evaluate_forecast,
+    )
 
     fold_data = get_fold_data(
         feature_panel=

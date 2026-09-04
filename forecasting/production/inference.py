@@ -13,6 +13,7 @@ import pandas as pd
 
 from forecasting.features.xgboost import build_xgboost_feature_panel, prepare_target_panel, validate_daily_panel
 from forecasting.paths import FORECASTS_DIR
+from forecasting.production.data_refresh import seattle_today
 from forecasting.production.xgboost import FEATURE_SET_NAME, MODEL_CONFIG_ID, MODEL_NAME, MODEL_VERSION, file_sha256, write_json
 
 
@@ -115,10 +116,10 @@ def _write_forecast_snapshot(snapshot: Path, forecast: pd.DataFrame, features: p
     return False
 
 
-def generate_forecast(*, artifact_dir: str | Path, target_panel: pd.DataFrame, forecast_origin: str | None = None, output_root: str | Path = FORECASTS_DIR, max_data_age_days: int | None = None) -> dict:
+def generate_forecast(*, artifact_dir: str | Path, target_panel: pd.DataFrame, forecast_origin: str | None = None, output_root: str | Path = FORECASTS_DIR, max_data_age_days: int | None = None, as_of_date: str | pd.Timestamp | None = None) -> dict:
     artifact = load_verified_artifact(artifact_dir)
     features, origin, target_date = build_future_features(target_panel, artifact["baseline"]["expected_neighborhoods"], forecast_origin)
-    today = pd.Timestamp(datetime.now(timezone.utc).date())
+    today = (seattle_today() if as_of_date is None else pd.Timestamp(as_of_date)).normalize()
     age_days = int((today - origin).days)
     if max_data_age_days is not None and age_days > max_data_age_days:
         raise ValueError(f"Source data age {age_days} exceeds max_data_age_days={max_data_age_days}.")

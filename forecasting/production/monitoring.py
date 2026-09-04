@@ -19,6 +19,7 @@ from forecasting.features.xgboost import (
     prepare_target_panel,
 )
 from forecasting.paths import FORECASTS_DIR, MONITORING_DIR, TARGET_PANEL_5Y_PATH
+from forecasting.production.data_refresh import seattle_today
 from forecasting.production.inference import load_verified_artifact
 from forecasting.production.xgboost import (
     MODEL_CONFIG_ID,
@@ -30,6 +31,7 @@ from forecasting.production.xgboost import (
 
 
 ROLLING_WINDOWS_DAYS = [7, 28, 90]
+MONITORING_REPORT_SCHEMA_VERSION = "2"
 FORECAST_FILES = [
     "forecast.parquet",
     "inference_features.parquet",
@@ -843,6 +845,7 @@ def run_monitoring(
     monitoring_root: str | Path = MONITORING_DIR,
     allow_mismatched_artifact_run_id: bool = False,
     max_data_age_days: int | None = None,
+    as_of_date: str | pd.Timestamp | None = None,
     update_latest: bool = True,
 ) -> dict:
     artifact = load_verified_artifact(artifact_dir)
@@ -863,11 +866,14 @@ def run_monitoring(
         pd.read_parquet(target_panel_path) if target_panel is None else target_panel.copy()
     )
     actuals = _prepare_actuals_panel(target_panel_df)
+    monitoring_as_of_date = (
+        seattle_today() if as_of_date is None else pd.Timestamp(as_of_date)
+    ).normalize()
     latest_observed_target_date = actuals["target_date"].max() if not actuals.empty else pd.NaT
     source_data_age_days = None
     if pd.notna(latest_observed_target_date):
         source_data_age_days = int(
-            (pd.Timestamp(datetime.now(timezone.utc).date()) - latest_observed_target_date).days
+            (monitoring_as_of_date - latest_observed_target_date.normalize()).days
         )
         if max_data_age_days is not None and source_data_age_days > max_data_age_days:
             raise ValueError(
@@ -877,6 +883,7 @@ def run_monitoring(
     prediction_drift = summarize_prediction_drift(snapshots, artifact["baseline"])
     maturity = determine_forecast_maturity(snapshots, actuals, expected_neighborhoods)
     inventory_rows = []
+    forecasts_root_path = Path(forecasts_root).resolve()
     for snapshot in snapshots:
         maturity_row = maturity.loc[maturity["forecast_id"] == snapshot.forecast_id].iloc[0]
         inventory_rows.append(
@@ -884,6 +891,9 @@ def run_monitoring(
                 "forecast_id": snapshot.forecast_id,
                 "artifact_run_id": snapshot.artifact_run_id,
                 "snapshot_dir": str(snapshot.snapshot_dir),
+                "snapshot_relpath": snapshot.snapshot_dir.resolve().relative_to(
+                    forecasts_root_path
+                ).as_posix(),
                 "forecast_origin": snapshot.forecast_origin,
                 "target_date": snapshot.target_date,
                 "maturity_status": maturity_row["maturity_status"],
@@ -895,6 +905,9 @@ def run_monitoring(
     forecast_inventory = pd.DataFrame(inventory_rows)
     if not forecast_inventory.empty:
         forecast_inventory = forecast_inventory.sort_values("target_date").reset_index(drop=True)
+    persisted_forecast_inventory = forecast_inventory.drop(
+        columns=["snapshot_dir"], errors="ignore"
+    )
 
     evaluation_dirs: list[Path] = []
     evaluation_idempotent_count = 0
@@ -959,8 +972,10 @@ def run_monitoring(
     monitoring_run_id = hashlib.sha256(
         json.dumps(
             {
+                "monitoring_report_schema_version": MONITORING_REPORT_SCHEMA_VERSION,
                 "artifact_run_id": artifact["metadata"]["artifact_run_id"],
                 "forecast_ids": sorted(forecast_inventory["forecast_id"].tolist()),
+                "monitoring_as_of_date": monitoring_as_of_date.date().isoformat(),
                 "latest_actual_date": None
                 if pd.isna(latest_observed_target_date)
                 else latest_observed_target_date.date().isoformat(),
@@ -983,6 +998,7 @@ def run_monitoring(
             "generation_timestamp_utc", generation_timestamp
         )
     summary = {
+        "monitoring_report_schema_version": MONITORING_REPORT_SCHEMA_VERSION,
         "model_name": artifact["metadata"]["model_name"],
         "model_version": artifact["metadata"]["model_version"],
         "model_config_id": artifact["metadata"]["model_config_id"],
@@ -998,6 +1014,7 @@ def run_monitoring(
         "latest_realized_target_date": None
         if pd.isna(latest_realized_date)
         else pd.Timestamp(latest_realized_date).date().isoformat(),
+        "monitoring_as_of_date": monitoring_as_of_date.date().isoformat(),
         "source_data_age_days": source_data_age_days,
         "n_forecasts": int(len(forecast_inventory)),
         "n_matured": int((forecast_inventory["maturity_status"] == "matured").sum()) if not forecast_inventory.empty else 0,
@@ -1014,7 +1031,7 @@ def run_monitoring(
         final_dir=report_dir,
         expected_files=REPORT_FILES,
         write_files={
-            "forecast_inventory.parquet": lambda path, frame=forecast_inventory: frame.to_parquet(path, index=False),
+            "forecast_inventory.parquet": lambda path, frame=persisted_forecast_inventory: frame.to_parquet(path, index=False),
             "daily_performance.parquet": lambda path, frame=latest_evaluations: frame.to_parquet(path, index=False),
             "rolling_performance.parquet": lambda path, frame=rolling_performance: frame.to_parquet(path, index=False),
             "feature_drift.parquet": lambda path, frame=feature_drift: frame.to_parquet(path, index=False),
