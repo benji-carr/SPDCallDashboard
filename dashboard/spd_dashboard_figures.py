@@ -219,7 +219,7 @@ def make_daily_figure(
 
     fig.update_layout(
         title=dict(  # Figure title: shortened main title with Type of Crime moved into subtitle
-            text=f"Daily Crime Events<br><sup>Type of Crime: {combo_label}</sup>",
+            text=f"Daily CAD Events<br><sup>Type of Call: {combo_label}</sup>",
             x=0.01,
             xanchor="left",
         ),
