@@ -40,6 +40,7 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
+          python -m pip install pytest==9.1.1
 
       - name: Refresh SPD calls data
         run: |
@@ -62,6 +63,10 @@ jobs:
       - name: Run smoke tests
         run: |
           python -m scripts.dashboard.smoke_check
+
+      - name: Run dashboard freshness tests
+        run: |
+          python -m pytest tests/dashboard/test_data_freshness.py -q
 
       - name: Commit refreshed data
         id: commit_refresh
