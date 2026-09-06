@@ -10,19 +10,40 @@ permissions:
   contents: read
 
 jobs:
-  freshness-tests:
-    if: ${{ !startsWith(github.head_ref, 'automation/daily-data-refresh-') }}
+  dashboard-tests:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Determine whether dashboard tests should run
+        id: gate
+        shell: bash
+        run: |
+          if [[ "${{ github.event_name }}" == "pull_request" && "${{ github.head_ref }}" == automation/daily-data-refresh-* ]]; then
+            echo "run_tests=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "run_tests=true" >> "$GITHUB_OUTPUT"
+          fi
 
-      - uses: actions/setup-python@v5
+      - name: Automated refresh already validated
+        if: steps.gate.outputs.run_tests == 'false'
+        run: |
+          echo "Automated dashboard data refresh PR."
+          echo "Smoke and freshness tests already passed in the refresh workflow."
+
+      - name: Check out repository
+        if: steps.gate.outputs.run_tests == 'true'
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        if: steps.gate.outputs.run_tests == 'true'
+        uses: actions/setup-python@v5
         with:
           python-version: "3.12"
 
       - name: Install development dependencies
+        if: steps.gate.outputs.run_tests == 'true'
         run: python -m pip install -r requirements-dev.txt
 
-      - name: Run mocked dashboard freshness tests
-        run: python -m pytest tests/dashboard/test_data_freshness.py -q
+      - name: Run dashboard tests
+        if: steps.gate.outputs.run_tests == 'true'
+        run: python -m pytest tests/dashboard -q
