@@ -1,5 +1,6 @@
 from functools import lru_cache
 import itertools
+import os
 
 import pandas as pd
 from dash import Dash, Input, Output, State, ctx, dcc, html
@@ -35,6 +36,7 @@ from dashboard.crime_dashboard_figures import (
     make_map_figure as make_crime_map_figure,
 )
 
+APP_ENV = os.getenv("APP_ENV", "production").strip().lower()
 
 PANEL_STYLE = {
     "height": "100%",
@@ -57,6 +59,16 @@ LOADING_STYLE = {
     "height": "100%",
     "width": "100%",
 }
+
+
+def make_environment_banner():
+    if APP_ENV != "staging":
+        return None
+
+    return html.Div(
+        "STAGING ENVIRONMENT",
+        className="staging-banner",
+    )
 
 
 def encode_combo(combo: list[str]) -> str:
@@ -1462,6 +1474,7 @@ def create_app() -> Dash:
     app.layout = html.Div(
         children=[
             dcc.Location(id="url"),
+            make_environment_banner(),
             html.Div(id="page-content"),
         ],
         className="site-shell",
