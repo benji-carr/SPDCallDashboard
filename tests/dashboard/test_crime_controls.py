@@ -6,9 +6,11 @@ import pytest
 from dashboard.crime_controls import (
     crime_chart_dates,
     crime_period_presets,
+    format_analysis_date_input,
     format_analysis_period_duration,
     make_analysis_state,
     make_neighborhood_options,
+    parse_analysis_date,
 )
 from dashboard.crime_filters import filter_crime_records
 from dashboard.crime_dashboard_figures import prepare_daily_event_data
@@ -50,6 +52,19 @@ def test_duration_uses_latest_dataset_date(latest, expected):
 def test_latest_single_day_and_reversed_dates():
     assert format_analysis_period_duration("2026-09-06", "2026-09-06", "2026-09-06") == "Latest day"
     assert format_analysis_period_duration("2026-09-06", "2026-09-01") == "5 days"
+
+
+@pytest.mark.parametrize("value", [
+    "Feb 11, 2026", "February 11, 2026", "2026-02-11", "2/11/2026",
+])
+def test_date_text_formats_parse_and_normalize(value):
+    assert parse_analysis_date(value) == "2026-02-11"
+    assert format_analysis_date_input(value) == "Feb 11, 2026"
+
+
+@pytest.mark.parametrize("value", [None, "", "not a date", "2026-02-30"])
+def test_invalid_date_text_is_rejected(value):
+    assert parse_analysis_date(value) is None
 
 
 def test_native_one_day_chart_range_becomes_latest_single_day():

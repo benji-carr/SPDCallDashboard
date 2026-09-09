@@ -3,7 +3,7 @@ import json
 import os
 
 import pandas as pd
-from dash import Dash, Input, Output, State, ctx, dcc, html
+from dash import Dash, Input, Output, State, ctx, dcc, html, no_update
 from dash.exceptions import MissingCallbackContextException, PreventUpdate
 
 from dashboard.spd_config import (
@@ -31,7 +31,7 @@ from dashboard.crime_dashboard_data import (
 )
 
 from dashboard.crime_controls import (
-    make_analysis_state, make_analysis_controls, format_analysis_period,
+    make_analysis_state, make_analysis_controls, format_analysis_date_input,
     format_analysis_period_annotation, make_neighborhood_options,
     validate_analysis_dates, crime_chart_dates,
 )
@@ -1410,22 +1410,27 @@ def create_app() -> Dash:
         return fig, label
 
     @app.callback(
-        Output("crime-analysis-date-range", "start_date"),
-        Output("crime-analysis-date-range", "end_date"),
+        Output("crime-analysis-start-date-input", "value"),
+        Output("crime-analysis-end-date-input", "value"),
         Input("crime-daily-figure", "relayoutData"),
-        Input("crime-analysis-date-range", "start_date"),
-        Input("crime-analysis-date-range", "end_date"),
+        Input("crime-analysis-start-date-input", "n_submit"),
+        Input("crime-analysis-start-date-input", "n_blur"),
+        Input("crime-analysis-end-date-input", "n_submit"),
+        Input("crime-analysis-end-date-input", "n_blur"),
+        State("crime-analysis-start-date-input", "value"),
+        State("crime-analysis-end-date-input", "value"),
         State("crime-analysis-state-store", "data"),
         prevent_initial_call=True,
     )
-    def update_crime_date_picker(
-        relayout_data, current_start, current_end, analysis_state=None,
+    def update_crime_date_inputs(
+        relayout_data, start_submit, start_blur, end_submit, end_blur,
+        current_start, current_end, analysis_state=None,
     ):
         try:
             triggered_id = ctx.triggered_id
         except MissingCallbackContextException:
             # Direct callback unit tests do not have Dash callback context.
-            triggered_id = "crime-daily-figure" if relayout_data else "crime-analysis-date-range"
+            triggered_id = "crime-daily-figure" if relayout_data else "crime-analysis-start-date-input"
 
         if triggered_id == "crime-daily-figure":
             dates = crime_chart_dates(relayout_data, earliest_crime_date, full_crime_end)
@@ -1435,27 +1440,34 @@ def create_app() -> Dash:
             # Ignore figure redraws that echo the current selection.
             if dates is None or dates == current:
                 raise PreventUpdate
-            return dates
+            return tuple(format_analysis_date_input(value) for value in dates)
 
-        dates = validate_analysis_dates(
-            current_start, current_end, earliest_crime_date, full_crime_end,
-        )
-        if dates is not None:
-            raise PreventUpdate
-
-        # A rejected typed edit must visibly return to the most recent valid
-        # analytical range rather than leaving malformed text in the editor.
         previous = analysis_state or default_crime_analysis_state
-        fallback = validate_analysis_dates(
+        previous_dates = validate_analysis_dates(
             previous.get("start_date"), previous.get("end_date"),
             earliest_crime_date, full_crime_end,
-        )
-        return fallback or (default_crime_start, default_crime_end)
+        ) or (default_crime_start, default_crime_end)
+
+        if triggered_id == "crime-analysis-start-date-input":
+            dates = validate_analysis_dates(
+                current_start, previous_dates[1], earliest_crime_date, full_crime_end,
+            )
+            normalized = dates[0] if dates else previous_dates[0]
+            return format_analysis_date_input(normalized), no_update
+
+        if triggered_id == "crime-analysis-end-date-input":
+            dates = validate_analysis_dates(
+                previous_dates[0], current_end, earliest_crime_date, full_crime_end,
+            )
+            normalized = dates[1] if dates else previous_dates[1]
+            return no_update, format_analysis_date_input(normalized)
+
+        raise PreventUpdate
 
     @app.callback(
         Output("crime-analysis-state-store", "data"),
-        Input("crime-analysis-date-range", "start_date"),
-        Input("crime-analysis-date-range", "end_date"),
+        Input("crime-analysis-start-date-input", "value"),
+        Input("crime-analysis-end-date-input", "value"),
         Input("crime-category-filter", "value"),
         Input("crime-subcategory-filter", "value"),
         Input("crime-neighborhood-filter", "value"),

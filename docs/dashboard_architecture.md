@@ -22,7 +22,7 @@ The root layout contains a `dcc.Location` component and a `page-content` contain
 
 The calls dashboard uses `daily-visible-range-store` to keep track of the visible range of its daily time series. When the user zooms, pans, or uses the range slider, the Plotly `relayoutData` is normalized and stored for the calls map callback.
 
-The crime dashboard instead uses `crime-analysis-date-range` as the canonical user-facing analytical range. Chart range-selector, zoom, pan, and slider interactions update that date picker; the picker and the other unified controls then populate `crime-analysis-state-store`. The crime daily figure, map, and period label all consume that common analysis state. There is intentionally no `crime-daily-visible-range-store`, so the chart and controls cannot retain competing crime-analysis periods.
+The crime dashboard instead uses the plain-text `crime-analysis-start-date-input` and `crime-analysis-end-date-input` controls as the canonical user-facing analytical range. Chart range-selector, zoom, pan, and slider interactions update those controls; the controls and the other unified filters then populate `crime-analysis-state-store`. The crime daily figure, map, and period label all consume that common analysis state. There is intentionally no `crime-daily-visible-range-store`, so the chart and controls cannot retain competing crime-analysis periods.
 
 ### Figure Update Callbacks:
 

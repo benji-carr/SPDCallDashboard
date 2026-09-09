@@ -27,10 +27,32 @@ def _calendar_date(value):
     return date.fromisoformat(str(value)[:10])
 
 
+def parse_analysis_date(value):
+    """Parse a user-entered date and return an ISO calendar date."""
+    if value is None or not str(value).strip():
+        return None
+    try:
+        parsed = pd.to_datetime(str(value).strip(), errors="raise")
+    except (TypeError, ValueError, pd.errors.ParserError):
+        return None
+    if pd.isna(parsed) or not isinstance(parsed, pd.Timestamp):
+        return None
+    return parsed.date().isoformat()
+
+
+def format_analysis_date_input(value):
+    """Return the compact human-readable text used by the date inputs."""
+    parsed = parse_analysis_date(value)
+    if parsed is None:
+        return ""
+    return date.fromisoformat(parsed).strftime("%b %d, %Y")
+
+
 def validate_analysis_dates(start, end, earliest, latest, *, clamp=False):
     """Return bounded ISO dates, or None while an edit is incomplete/invalid."""
     try:
-        start, end = _calendar_date(start), _calendar_date(end)
+        start = date.fromisoformat(parse_analysis_date(start))
+        end = date.fromisoformat(parse_analysis_date(end))
         earliest, latest = _calendar_date(earliest), _calendar_date(latest)
     except (TypeError, ValueError):
         return None
@@ -169,16 +191,22 @@ def make_analysis_controls(state, category_options, category_value,
             html.Label("Period of Analysis", id="crime-analysis-period-heading"),
             html.Div([
                 html.Span(
-                    dcc.DatePickerRange(
-                        id="crime-analysis-date-range",
-                        start_date=state["start_date"], end_date=state["end_date"],
-                        min_date_allowed=earliest_date, max_date_allowed=latest_date,
-                        initial_visible_month=state["end_date"],
-                        display_format="MMM D, YYYY", minimum_nights=0,
-                        start_date_placeholder_text="Start date",
-                        end_date_placeholder_text="End date",
-                        clearable=False, number_of_months_shown=1,
-                    ),
+                    [
+                        html.Span("Start:", className="crime-analysis-date-caption"),
+                        dcc.Input(
+                            id="crime-analysis-start-date-input", type="text",
+                            value=format_analysis_date_input(state["start_date"]),
+                            debounce=True, autoComplete="off",
+                            className="crime-analysis-date-input",
+                        ),
+                        html.Span("End:", className="crime-analysis-date-caption"),
+                        dcc.Input(
+                            id="crime-analysis-end-date-input", type="text",
+                            value=format_analysis_date_input(state["end_date"]),
+                            debounce=True, autoComplete="off",
+                            className="crime-analysis-date-input",
+                        ),
+                    ],
                     id="crime-analysis-period-label",
                 ),
                 html.Span(format_analysis_period_annotation(state, latest_date),

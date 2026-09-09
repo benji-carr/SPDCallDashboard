@@ -286,7 +286,8 @@ def test_crime_analysis_controls_and_state_ownership(monkeypatch):
     assert "crime-point-neighborhood-filter" not in ids
     state_inputs = app.callback_map["crime-analysis-state-store.data"]["inputs"]
     assert {item["id"] for item in state_inputs} == {
-        "crime-analysis-date-range", "crime-category-filter",
+        "crime-analysis-start-date-input", "crime-analysis-end-date-input",
+        "crime-category-filter",
         "crime-subcategory-filter", "crime-neighborhood-filter",
     }
     map_key = next(key for key in app.callback_map if "crime-map-graph-container" in key)
@@ -318,14 +319,17 @@ def test_analysis_state_callback_defaults_and_selections(monkeypatch):
 
 def test_crime_calendar_presets_survive_range_and_state_callbacks(monkeypatch):
     app = _build_stub_app(monkeypatch, crime_start="2025-01-01")
-    range_callback = _picker_callback(app)
+    range_callback = _date_inputs_callback(app)
     state_callback = app.callback_map["crime-analysis-state-store.data"]["callback"].__wrapped__
     period_callback = app.callback_map[
         "crime-analysis-period-duration.children"
     ]["callback"].__wrapped__
     for start, expected in [("2026-08-26", "1 week"), ("2026-08-02", "1 month"),
                             ("2025-09-02", "1 year")]:
-        selected_range = range_callback({"xaxis.range": [start, "2026-09-02"]}, "2026-09-02", "2026-09-02")
+        selected_range = _chart_date_update(
+            range_callback, {"xaxis.range": [start, "2026-09-02"]},
+            "Sep 02, 2026", "Sep 02, 2026",
+        )
         state = state_callback(*selected_range, app_module.TARGET_CRIME_CATEGORIES, [], [])
         assert state["start_date"] == start
         assert state["end_date"] == "2026-09-02"
@@ -353,26 +357,38 @@ def test_map_and_daily_callbacks_use_common_state(monkeypatch):
     assert map_capture["show_colorbar"] is False
 
 
-def _picker_callback(app):
-    key = next(key for key in app.callback_map if "crime-analysis-date-range.start_date" in key)
+def _date_inputs_callback(app):
+    key = next(
+        key for key in app.callback_map
+        if "crime-analysis-start-date-input.value" in key
+        and "crime-analysis-end-date-input.value" in key
+    )
     return app.callback_map[key]["callback"].__wrapped__
+
+
+def _chart_date_update(callback, relayout, start, end, state=None):
+    return callback(relayout, None, None, None, None, start, end, state)
 
 
 def test_crime_date_sync_preserves_slider_and_ignores_presentation(monkeypatch):
     import pytest
     from dash.exceptions import PreventUpdate
     app = _build_stub_app(monkeypatch)
-    callback = _picker_callback(app)
-    assert callback({"xaxis.range": ["2026-09-01", "2026-09-02"]},
-                    "2026-09-02", "2026-09-02") == ("2026-09-01", "2026-09-02")
+    callback = _date_inputs_callback(app)
+    assert _chart_date_update(
+        callback, {"xaxis.range": ["2026-09-01", "2026-09-02"]},
+        "Sep 02, 2026", "Sep 02, 2026",
+    ) == ("Sep 01, 2026", "Sep 02, 2026")
     with pytest.raises(PreventUpdate):
-        callback({"autosize": True}, "2026-09-01", "2026-09-02")
+        _chart_date_update(callback, {"autosize": True}, "Sep 01, 2026", "Sep 02, 2026")
     with pytest.raises(PreventUpdate):
-        callback({"xaxis.range": ["2026-09-01", "2026-09-02"]},
-                 "2026-09-01", "2026-09-02")
+        _chart_date_update(
+            callback, {"xaxis.range": ["2026-09-01", "2026-09-02"]},
+            "Sep 01, 2026", "Sep 02, 2026",
+        )
 
 
-def test_picker_defaults_bounds_and_no_competing_store(monkeypatch):
+def test_plain_text_date_inputs_defaults_and_no_competing_store(monkeypatch):
     app = _build_stub_app(monkeypatch)
     page = app.callback_map["page-content.children"]["callback"].__wrapped__("/crime")
     def walk(node):
@@ -385,14 +401,16 @@ def test_picker_defaults_bounds_and_no_competing_store(monkeypatch):
         for child in children:
             yield from walk(child)
     nodes = {getattr(node, "id", None): node for node in walk(page)}
-    picker = nodes["crime-analysis-date-range"]
-    assert picker.start_date == picker.end_date == "2026-09-02"
-    assert picker.min_date_allowed == "2026-09-01"
-    assert picker.max_date_allowed == "2026-09-02"
-    assert picker.minimum_nights == 0
+    start_input = nodes["crime-analysis-start-date-input"]
+    end_input = nodes["crime-analysis-end-date-input"]
+    assert start_input.type == end_input.type == "text"
+    assert start_input.debounce is end_input.debounce is True
+    assert start_input.value == end_input.value == "Sep 02, 2026"
+    assert "crime-analysis-date-range" not in nodes
     assert "crime-daily-visible-range-store" not in nodes
     assert [(i["id"], i["property"]) for i in app.callback_map["crime-analysis-state-store.data"]["inputs"]][:2] == [
-        ("crime-analysis-date-range", "start_date"), ("crime-analysis-date-range", "end_date"),
+        ("crime-analysis-start-date-input", "value"),
+        ("crime-analysis-end-date-input", "value"),
     ]
 
 
@@ -406,8 +424,10 @@ def test_invalid_picker_edits_preserve_state_and_chart_clamps_to_data(monkeypatc
                        ("2026-08-31", "2026-09-02"), ("2026-09-01", "2026-09-03")]:
         with pytest.raises(PreventUpdate):
             state(start, end, None, [], [])
-    assert _picker_callback(app)({"xaxis.range": ["2020-01-01", "2030-01-01"]},
-                                 "2026-09-02", "2026-09-02") == ("2026-09-01", "2026-09-02")
+    assert _chart_date_update(
+        _date_inputs_callback(app), {"xaxis.range": ["2020-01-01", "2030-01-01"]},
+        "Sep 02, 2026", "Sep 02, 2026",
+    ) == ("Sep 01, 2026", "Sep 02, 2026")
 
 
 def test_manual_dates_drive_daily_viewport_and_period_label(monkeypatch):
@@ -425,22 +445,37 @@ def test_manual_dates_drive_daily_viewport_and_period_label(monkeypatch):
     assert app.callback_map[key]["callback"].__wrapped__(same_day) == "(Latest day)"
 
 
-def test_invalid_inline_date_edit_reverts_to_last_valid_state(monkeypatch):
-    from dash.exceptions import PreventUpdate
-
-    app = _build_stub_app(monkeypatch)
-    callback = _picker_callback(app)
+def test_independent_date_edits_normalize_and_invalid_edits_revert(monkeypatch):
+    app = _build_stub_app(monkeypatch, crime_start="2025-01-01")
+    callback = _date_inputs_callback(app)
     previous = _analysis_state()
     monkeypatch.setattr(
         app_module,
         "ctx",
-        SimpleNamespace(triggered_id="crime-analysis-date-range"),
+        SimpleNamespace(triggered_id="crime-analysis-start-date-input"),
     )
-    assert callback(None, None, "2026-09-02", previous) == (
-        "2026-09-01", "2026-09-02",
+    assert callback(None, 1, None, None, None, "bad date", "Sep 02, 2026", previous) == (
+        "Sep 01, 2026", app_module.no_update,
     )
-    assert callback(None, "2026-09-02", "2026-09-01", previous) == (
-        "2026-09-01", "2026-09-02",
+    assert callback(None, 2, None, None, None, "Sep 03, 2026", "Sep 02, 2026", previous) == (
+        "Sep 01, 2026", app_module.no_update,
     )
-    with pytest.raises(PreventUpdate):
-        callback(None, "2026-09-01", "2026-09-02", previous)
+    assert callback(None, 3, None, None, None, "2/11/2026", "Sep 02, 2026", previous) == (
+        "Feb 11, 2026", app_module.no_update,
+    )
+    state_callback = app.callback_map["crime-analysis-state-store.data"]["callback"].__wrapped__
+    state = state_callback(
+        "Feb 11, 2026", "Sep 02, 2026", app_module.TARGET_CRIME_CATEGORIES, [], [],
+    )
+    assert state["start_date"] == "2026-02-11"
+    assert state["end_date"] == "2026-09-02"
+
+    previous = {**previous, "start_date": "2026-02-11"}
+    monkeypatch.setattr(
+        app_module,
+        "ctx",
+        SimpleNamespace(triggered_id="crime-analysis-end-date-input"),
+    )
+    assert callback(None, None, None, 1, None, "Feb 11, 2026", "August 31, 2026", previous) == (
+        app_module.no_update, "Aug 31, 2026",
+    )

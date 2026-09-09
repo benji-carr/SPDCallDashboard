@@ -923,27 +923,22 @@ body,
     .crime-analysis-controls { grid-template-columns: minmax(0, 1fr); }
 }
 
-/* The yellow period summary is also the compact keyboard-editable date input. */
-#crime-analysis-date-range,
-#crime-analysis-date-range .DateRangePicker,
-#crime-analysis-date-range .DateRangePickerInput {
-    background: transparent !important; border: 0 !important; box-shadow: none !important;
+/* Compact keyboard-editable dates that read as part of the yellow summary. */
+#crime-analysis-period-label {
+    display: inline-flex; flex-wrap: wrap; align-items: baseline; gap: 5px;
 }
-#crime-analysis-date-range .DateInput {
-    width: 104px; background: transparent !important; border: 0 !important;
-    box-shadow: none !important;
+.crime-analysis-date-caption { color: #dddddd; font-size: 12px; font-weight: 600; }
+.crime-analysis-date-caption + .crime-analysis-date-input { margin-right: 9px; }
+.crime-analysis-date-input {
+    width: 14ch; min-width: 14ch; flex: 0 0 14ch;
+    box-sizing: content-box; padding: 0;
+    background: transparent; border: 0; border-bottom: 1px solid transparent;
+    border-radius: 0; outline: none; box-shadow: none;
+    color: #fbbf24; font: inherit; font-size: 14px; font-weight: 600;
 }
-#crime-analysis-date-range .DateInput_input {
-    box-sizing: border-box; padding: 1px 0 2px; background: transparent !important;
-    border: 0 !important; border-bottom: 1px dashed rgba(251, 191, 36, 0.6) !important;
-    border-radius: 0 !important; box-shadow: none !important;
-    color: #fbbf24 !important; font-size: 14px; font-weight: 600; line-height: 20px;
+.crime-analysis-date-input:hover {
+    color: #fcd34d; border-bottom-color: rgba(251, 191, 36, 0.35);
 }
-#crime-analysis-date-range .DateInput_input:focus {
-    background: transparent !important; border-bottom-color: #fbbf24 !important;
-    box-shadow: none !important; outline: none;
+.crime-analysis-date-input:focus {
+    color: #fde68a; border-bottom-color: #fbbf24;
 }
-#crime-analysis-date-range .DateRangePickerInput_arrow { margin-inline: 7px; color: #fbbf24; }
-#crime-analysis-date-range .DateRangePickerInput_arrow_svg { display: none; }
-#crime-analysis-date-range .DateRangePickerInput_arrow::after { content: "to"; font-size: 14px; }
-#crime-analysis-date-range .DateRangePicker_picker { display: none !important; }
