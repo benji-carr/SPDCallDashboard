@@ -1,10 +1,10 @@
 from functools import lru_cache
-import itertools
+import json
 import os
 
 import pandas as pd
 from dash import Dash, Input, Output, State, ctx, dcc, html
-from dash.exceptions import PreventUpdate
+from dash.exceptions import MissingCallbackContextException, PreventUpdate
 
 from dashboard.spd_config import (
     TIME_COLUMN as CALL_TIME_COLUMN,
@@ -28,6 +28,12 @@ from dashboard.spd_dashboard_figures import (
 from dashboard.crime_dashboard_data import (
     TIME_COLUMN as CRIME_TIME_COLUMN,
     load_crime_dashboard_context,
+)
+
+from dashboard.crime_controls import (
+    make_analysis_state, make_analysis_controls, format_analysis_period,
+    format_analysis_period_annotation, make_neighborhood_options,
+    validate_analysis_dates, crime_chart_dates,
 )
 
 from dashboard.crime_dashboard_figures import (
@@ -69,57 +75,6 @@ def make_environment_banner():
         "STAGING ENVIRONMENT",
         className="staging-banner",
     )
-
-
-def encode_combo(combo: list[str]) -> str:
-    return "||".join(combo)
-
-
-def decode_combo(
-    value: str | None,
-    default_values: list[str],
-) -> list[str]:
-    if value is None:
-        return default_values
-
-    return value.split("||")
-
-
-def make_combo_label(
-    combo: list[str],
-    all_values: list[str],
-) -> str:
-    if len(combo) == len(all_values):
-        return "All selected categories"
-
-    return " + ".join(combo)
-
-
-def make_combo_options(
-    values: list[str],
-) -> list[dict[str, str]]:
-    combos = []
-
-    for r in range(1, len(values) + 1):
-        for combo in itertools.combinations(values, r):
-            combos.append(list(combo))
-
-    ordered_combos = [
-        values,
-        *[
-            combo
-            for combo in combos
-            if combo != values
-        ],
-    ]
-
-    return [
-        {
-            "label": make_combo_label(combo, values),
-            "value": encode_combo(combo),
-        }
-        for combo in ordered_combos
-    ]
 
 
 def make_page_nav(active_page: str) -> html.Div:
@@ -582,6 +537,9 @@ def create_app() -> Dash:
 
     calls_context = load_calls_dashboard_context()
     crime_context = load_crime_dashboard_context()
+    earliest_crime_date = pd.to_datetime(
+        crime_context["valid_time"][CRIME_TIME_COLUMN], errors="coerce",
+    ).min().date().isoformat()
 
     def make_options_from_series(series: pd.Series) -> list[dict[str, str]]:
         values = (
@@ -605,18 +563,21 @@ def create_app() -> Dash:
 
 
     crime_subcategory_options = make_options_from_series(
-        crime_context["event_mcpp"]["offense_sub_category"]
+        crime_context["valid_time"]["offense_sub_category"]
     )
 
-    crime_neighborhood_options = make_options_from_series(
-        crime_context["event_mcpp"]["mcpp_neighborhood"]
+    crime_neighborhood_options = make_neighborhood_options(
+        crime_context["valid_time"]["mcpp_neighborhood"]
     )
 
     call_bin_options = make_bin_dropdown_options()
     default_call_bin_value = call_bin_options[0]["value"]
 
-    crime_category_options = make_combo_options(TARGET_CRIME_CATEGORIES)
-    default_crime_category_value = encode_combo(TARGET_CRIME_CATEGORIES)
+    crime_category_options = [
+        {"label": category.title(), "value": category}
+        for category in TARGET_CRIME_CATEGORIES
+    ]
+    default_crime_category_value = list(TARGET_CRIME_CATEGORIES)
 
     default_call_start, default_call_end = get_default_map_date_range(
         calls_context,
@@ -708,56 +669,40 @@ def create_app() -> Dash:
 
         return fig, visible_point_count
 
-    @lru_cache(maxsize=64)
-    def cached_crime_daily_figure(
-        selected_category_value: str,
-        show_legend: bool,
-    ):
-        selected_categories = decode_combo(
-            selected_category_value,
-            TARGET_CRIME_CATEGORIES,
-        )
+    default_crime_analysis_state = make_analysis_state(
+        None, default_crime_category_value, [], [],
+        default_crime_start, default_crime_end, TARGET_CRIME_CATEGORIES,
+    )
 
+    @lru_cache(maxsize=64)
+    def cached_crime_daily_figure(analysis_key, show_legend):
+        analysis_state = json.loads(analysis_key)
         fig = make_crime_daily_figure(
             context=crime_context,
-            selected_bins=selected_categories,
+            selected_bins=analysis_state["crime_categories"],
+            analysis_state=analysis_state,
         )
-
-        fig.update_layout(
-            showlegend=show_legend,
-            autosize=True,
-        )
-
+        start, end = analysis_state["start_date"], analysis_state["end_date"]
+        # A same-day selection needs a nonzero viewport within that same day.
+        if start == end:
+            end += " 23:59:59.999"
+        fig.update_layout(showlegend=show_legend, autosize=True,
+                          uirevision=f"crime-analysis-{start}-{end}",
+                          xaxis_range=[start, end])
         return fig
 
-    def build_crime_map_figure(
-        selected_category_value: str,
-        point_start_date: str,
-        point_end_date: str,
-        show_colorbar: bool,
-        point_filters: dict | None = None,
-    ):
-        selected_categories = decode_combo(
-            selected_category_value,
-            TARGET_CRIME_CATEGORIES,
-        )
-
+    def build_crime_map_figure(analysis_state, show_colorbar, text_filter):
         fig = make_crime_map_figure(
             context=crime_context,
-            selected_bins=selected_categories,
-            point_start_date=point_start_date,
-            point_end_date=point_end_date,
+            selected_bins=analysis_state["crime_categories"],
+            point_start_date=analysis_state["start_date"],
+            point_end_date=analysis_state["end_date"],
             show_colorbar=show_colorbar,
-            point_filters=point_filters,
+            point_filters={"text": text_filter or ""},
+            analysis_state=analysis_state,
         )
-
-        fig.update_layout(
-            autosize=True,
-        )
-
-        visible_point_count = count_map_points(fig)
-
-        return fig, visible_point_count
+        fig.update_layout(autosize=True)
+        return fig, count_map_points(fig)
 
     def make_calls_page() -> html.Div:
         return html.Div(
@@ -1099,122 +1044,22 @@ def create_app() -> Dash:
                 html.Div(
                     children=[
                         dcc.Store(
-                            id="crime-daily-visible-range-store",
-                            data={
-                                "start": default_crime_start,
-                                "end": default_crime_end,
-                            },
+                            id="crime-analysis-state-store",
+                            data=default_crime_analysis_state,
                         ),
-
                         dcc.Store(
                             id="crime-fullscreen-figure-store",
                             data=None,
                         ),
 
-                        html.Div(
-                            children=[
-                                html.Div(
-                                    children=[
-                                        html.H1(
-                                            "Seattle Crime Dashboard",
-                                            style={
-                                                "margin": "0",
-                                                "fontSize": "19px",
-                                                "lineHeight": "21px",
-                                                "color": "white",
-                                            },
-                                        ),
-                                        html.P(
-                                            (
-                                                "Reported crime offenses by neighborhood, "
-                                                "daily trends, and type of crime."
-                                            ),
-                                            style={
-                                                "margin": "2px 0 0 0",
-                                                "color": "#bbbbbb",
-                                                "fontSize": "11px",
-                                                "lineHeight": "13px",
-                                            },
-                                        ),
-                                    ],
-                                    className="title-block",
-                                    style={
-                                        "minWidth": "0",
-                                    },
-                                ),
-
-                                html.Div(
-                                    children=[
-                                        html.Label(
-                                            "Type of Crime",
-                                            style={
-                                                "fontSize": "12px",
-                                                "color": "#dddddd",
-                                                "whiteSpace": "nowrap",
-                                            },
-                                        ),
-                                        dcc.Dropdown(
-                                            id="crime-category-filter",
-                                            className="type-dropdown",
-                                            options=crime_category_options,
-                                            value=default_crime_category_value,
-                                            clearable=False,
-                                            style={
-                                                "width": "320px",
-                                                "color": "#111111",
-                                                "fontSize": "13px",
-                                            },
-                                        ),
-                                    ],
-                                    className="type-control",
-                                    style={
-                                        "display": "flex",
-                                        "alignItems": "center",
-                                        "justifyContent": "center",
-                                        "gap": "10px",
-                                        "minWidth": "0",
-                                    },
-                                ),
-
-                                html.Div(
-                                    id="crime-map-point-window-label",
-                                    children=(
-                                        f"Map points: {default_crime_start} "
-                                        f"to {default_crime_end}"
-                                    ),
-                                    style={
-                                        "color": "#bbbbbb",
-                                        "fontSize": "11px",
-                                        "textAlign": "right",
-                                        "whiteSpace": "nowrap",
-                                        "overflow": "hidden",
-                                        "textOverflow": "ellipsis",
-                                        "minWidth": "0",
-                                    },
-                                ),
-
-                                html.Div(
-                                    "Mobile view shows the interactive map only.",
-                                    className="mobile-map-note",
-                                ),
-                            ],
-                            className="top-bar",
-                            style={
-                                "height": "52px",
-                                "display": "grid",
-                                "gridTemplateColumns": (
-                                    "minmax(250px, 1fr) "
-                                    "minmax(330px, 420px) "
-                                    "minmax(250px, 0.9fr)"
-                                ),
-                                "alignItems": "center",
-                                "gap": "12px",
-                                "padding": "6px 10px",
-                                "backgroundColor": "#151515",
-                                "borderBottom": "1px solid #333333",
-                                "boxSizing": "border-box",
-                                "minWidth": "0",
-                            },
+                        html.Div([
+                            html.H1("Seattle Crime Dashboard"),
+                            html.Div(id="crime-map-point-window-label"),
+                        ], className="crime-page-heading"),
+                        make_analysis_controls(
+                            default_crime_analysis_state, crime_category_options,
+                            default_crime_category_value, crime_subcategory_options,
+                            crime_neighborhood_options, earliest_crime_date, full_crime_end,
                         ),
 
                         html.Div(
@@ -1333,48 +1178,6 @@ def create_app() -> Dash:
                                                 ),
 
                                                 html.Label(
-                                                    "Offense sub-category",
-                                                    style={
-                                                        "fontSize": "11px",
-                                                        "color": "#bbbbbb",
-                                                    },
-                                                ),
-
-                                                dcc.Dropdown(
-                                                    id="crime-point-subcategory-filter",
-                                                    options=crime_subcategory_options,
-                                                    value=[],
-                                                    multi=True,
-                                                    placeholder="All sub-categories",
-                                                    style={
-                                                        "color": "#111111",
-                                                        "fontSize": "12px",
-                                                        "marginBottom": "8px",
-                                                    },
-                                                ),
-
-                                                html.Label(
-                                                    "Neighborhood",
-                                                    style={
-                                                        "fontSize": "11px",
-                                                        "color": "#bbbbbb",
-                                                    },
-                                                ),
-
-                                                dcc.Dropdown(
-                                                    id="crime-point-neighborhood-filter",
-                                                    options=crime_neighborhood_options,
-                                                    value=[],
-                                                    multi=True,
-                                                    placeholder="All neighborhoods",
-                                                    style={
-                                                        "color": "#111111",
-                                                        "fontSize": "12px",
-                                                        "marginBottom": "8px",
-                                                    },
-                                                ),
-
-                                                html.Label(
                                                     "Text search",
                                                     style={
                                                         "fontSize": "11px",
@@ -1413,7 +1216,7 @@ def create_app() -> Dash:
                                 ),
                                 "gridTemplateRows": "minmax(0, 1fr)",
                                 "gap": "8px",
-                                "height": "calc(100dvh - 88px)",
+                                "flex": "1",
                                 "width": "100%",
                                 "padding": "8px",
                                 "backgroundColor": "#111111",
@@ -1456,7 +1259,7 @@ def create_app() -> Dash:
                             className="fullscreen-overlay hidden",
                         ),
                     ],
-                    className="app-shell",
+                    className="app-shell crime-app-shell",
                     style={
                         "height": "calc(100dvh - 36px)",
                         "width": "100%",
@@ -1607,110 +1410,102 @@ def create_app() -> Dash:
         return fig, label
 
     @app.callback(
-        Output("crime-daily-visible-range-store", "data"),
+        Output("crime-analysis-date-range", "start_date"),
+        Output("crime-analysis-date-range", "end_date"),
         Input("crime-daily-figure", "relayoutData"),
-        State("crime-daily-visible-range-store", "data"),
+        Input("crime-analysis-date-range", "start_date"),
+        Input("crime-analysis-date-range", "end_date"),
+        State("crime-analysis-state-store", "data"),
         prevent_initial_call=True,
     )
-    def update_crime_daily_visible_range_store(
-        daily_relayout_data,
-        current_range_data,
+    def update_crime_date_picker(
+        relayout_data, current_start, current_end, analysis_state=None,
     ):
-        if not daily_relayout_data:
+        try:
+            triggered_id = ctx.triggered_id
+        except MissingCallbackContextException:
+            # Direct callback unit tests do not have Dash callback context.
+            triggered_id = "crime-daily-figure" if relayout_data else "crime-analysis-date-range"
+
+        if triggered_id == "crime-daily-figure":
+            dates = crime_chart_dates(relayout_data, earliest_crime_date, full_crime_end)
+            current = validate_analysis_dates(
+                current_start, current_end, earliest_crime_date, full_crime_end,
+            )
+            # Ignore figure redraws that echo the current selection.
+            if dates is None or dates == current:
+                raise PreventUpdate
+            return dates
+
+        dates = validate_analysis_dates(
+            current_start, current_end, earliest_crime_date, full_crime_end,
+        )
+        if dates is not None:
             raise PreventUpdate
 
-        start_date, end_date = extract_daily_visible_date_range(
-            relayout_data=daily_relayout_data,
-            default_start=default_crime_start,
-            default_end=default_crime_end,
-            full_start=full_crime_start,
-            full_end=full_crime_end,
+        # A rejected typed edit must visibly return to the most recent valid
+        # analytical range rather than leaving malformed text in the editor.
+        previous = analysis_state or default_crime_analysis_state
+        fallback = validate_analysis_dates(
+            previous.get("start_date"), previous.get("end_date"),
+            earliest_crime_date, full_crime_end,
         )
+        return fallback or (default_crime_start, default_crime_end)
 
-        current_start, current_end = get_range_from_store(
-            range_store_data=current_range_data,
-            default_start=default_crime_start,
-            default_end=default_crime_end,
+    @app.callback(
+        Output("crime-analysis-state-store", "data"),
+        Input("crime-analysis-date-range", "start_date"),
+        Input("crime-analysis-date-range", "end_date"),
+        Input("crime-category-filter", "value"),
+        Input("crime-subcategory-filter", "value"),
+        Input("crime-neighborhood-filter", "value"),
+    )
+    def update_crime_analysis_state(start_date, end_date, categories, subcategories, neighborhoods):
+        dates = validate_analysis_dates(
+            start_date, end_date, earliest_crime_date, full_crime_end,
         )
-
-        if start_date == current_start and end_date == current_end:
+        if dates is None:
             raise PreventUpdate
+        return make_analysis_state(
+            {"start": dates[0], "end": dates[1]}, categories, subcategories, neighborhoods,
+            default_crime_start, default_crime_end, TARGET_CRIME_CATEGORIES,
+        )
 
-        return {
-            "start": start_date,
-            "end": end_date,
-        }
+    @app.callback(
+        Output("crime-analysis-period-duration", "children"),
+        Input("crime-analysis-state-store", "data"),
+    )
+    def update_crime_analysis_period(analysis_state):
+        state = analysis_state or default_crime_analysis_state
+        return format_analysis_period_annotation(state, full_crime_end)
 
     @app.callback(
         Output("crime-daily-figure", "figure"),
-        Input("crime-category-filter", "value"),
+        Input("crime-analysis-state-store", "data"),
         Input("crime-legend-toggle", "value"),
     )
-    def update_crime_daily_figure(
-        selected_category_value,
-        legend_values,
-    ):
-        if legend_values is None:
-            legend_values = []
-
-        show_legend = "daily" in legend_values
-
+    def update_crime_daily_figure(analysis_state, legend_values):
         return cached_crime_daily_figure(
-            selected_category_value=selected_category_value,
-            show_legend=show_legend,
+            json.dumps(analysis_state or default_crime_analysis_state, sort_keys=True),
+            "daily" in (legend_values or []),
         )
 
     @app.callback(
         Output("crime-map-graph-container", "children"),
         Output("crime-map-point-window-label", "children"),
-        Input("crime-category-filter", "value"),
-        Input("crime-daily-visible-range-store", "data"),
+        Input("crime-analysis-state-store", "data"),
         Input("crime-legend-toggle", "value"),
-        Input("crime-point-subcategory-filter", "value"),
-        Input("crime-point-neighborhood-filter", "value"),
         Input("crime-point-text-filter", "value"),
     )
-    def update_crime_map_figure(
-        selected_category_value,
-        range_store_data,
-        legend_values,
-        selected_subcategories,
-        selected_neighborhoods,
-        text_filter,
-    ):
-        if legend_values is None:
-            legend_values = []
-
-        point_start_date, point_end_date = get_range_from_store(
-            range_store_data=range_store_data,
-            default_start=default_crime_start,
-            default_end=default_crime_end,
-        )
-
-        point_filters = {
-            "offense_sub_categories": selected_subcategories or [],
-            "mcpp_neighborhoods": selected_neighborhoods or [],
-            "text": text_filter or "",
-        }
-
-        show_colorbar = "map_colorbar" in legend_values
-
+    def update_crime_map_figure(analysis_state, legend_values, text_filter):
+        analysis_state = analysis_state or default_crime_analysis_state
+        point_start_date = analysis_state["start_date"]
+        point_end_date = analysis_state["end_date"]
+        show_colorbar = "map_colorbar" in (legend_values or [])
         fig, visible_point_count = build_crime_map_figure(
-            selected_category_value=selected_category_value,
-            point_start_date=point_start_date,
-            point_end_date=point_end_date,
-            show_colorbar=show_colorbar,
-            point_filters=point_filters,
+            analysis_state, show_colorbar, text_filter,
         )
-
-        graph_key = (
-            f"crime-map|{selected_category_value}|"
-            f"{point_start_date}|{point_end_date}|"
-            f"{show_colorbar}|"
-            f"{','.join(point_filters['offense_sub_categories'])}|"
-            f"{','.join(point_filters['mcpp_neighborhoods'])}|"
-            f"{point_filters['text']}"
-        )
+        graph_key = json.dumps([analysis_state, show_colorbar, text_filter], sort_keys=True)
         graph = html.Div(
             children=[
                 dcc.Graph(
@@ -1861,66 +1656,30 @@ def create_app() -> Dash:
         Output("crime-fullscreen-title", "children"),
         Output("crime-fullscreen-figure", "figure"),
         Input("crime-fullscreen-figure-store", "data"),
-        Input("crime-category-filter", "value"),
-        Input("crime-daily-visible-range-store", "data"),
+        Input("crime-analysis-state-store", "data"),
         Input("crime-legend-toggle", "value"),
-        Input("crime-point-subcategory-filter", "value"),
-        Input("crime-point-neighborhood-filter", "value"),
         Input("crime-point-text-filter", "value"),
     )
     def update_crime_fullscreen_overlay(
-        fullscreen_target,
-        selected_category_value,
-        range_store_data,
-        legend_values,
-        selected_subcategories,
-        selected_neighborhoods,
-        text_filter,
+        fullscreen_target, analysis_state, legend_values, text_filter,
     ):
-        if legend_values is None:
-            legend_values = []
-
+        analysis_state = analysis_state or default_crime_analysis_state
+        legend_values = legend_values or []
         if fullscreen_target is None:
             return "fullscreen-overlay hidden", "", {}
-
         if fullscreen_target == "map":
-            point_start_date, point_end_date = get_range_from_store(
-                range_store_data=range_store_data,
-                default_start=default_crime_start,
-                default_end=default_crime_end,
-            )
-
-            point_filters = {
-                "offense_sub_categories": selected_subcategories or [],
-                "mcpp_neighborhoods": selected_neighborhoods or [],
-                "text": text_filter or "",
-            }
-
-            show_colorbar = "map_colorbar" in legend_values
-
             fig, visible_point_count = build_crime_map_figure(
-                selected_category_value=selected_category_value,
-                point_start_date=point_start_date,
-                point_end_date=point_end_date,
-                show_colorbar=show_colorbar,
-                point_filters=point_filters,
+                analysis_state, "map_colorbar" in legend_values, text_filter,
             )
-
             title = (
-                f"Map view | {point_start_date} to {point_end_date}"
+                f"Map view | {analysis_state['start_date']} to {analysis_state['end_date']}"
                 f" | {visible_point_count:,} visible points"
             )
-
             return "fullscreen-overlay", title, fig
-
         if fullscreen_target == "daily":
-            show_legend = "daily" in legend_values
-
             fig = cached_crime_daily_figure(
-                selected_category_value=selected_category_value,
-                show_legend=show_legend,
+                json.dumps(analysis_state, sort_keys=True), "daily" in legend_values,
             )
-
             return "fullscreen-overlay", "Daily crime events", fig
 
         raise PreventUpdate

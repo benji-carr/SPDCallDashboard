@@ -66,14 +66,22 @@ def test_daily_figures_expose_native_one_day_range_selector(
 ):
     figure = figure_module.make_daily_figure(context, selected_bins)
     buttons = figure.layout.xaxis.rangeselector.buttons
-
     assert [button.label for button in buttons] == ["1D", "1W", "1M", "1Y"]
     assert buttons[0].count == 1
     assert buttons[0].step == "day"
     assert buttons[0].stepmode == "backward"
-    assert buttons[1].count == 6
-    assert buttons[2].count == 29
-    assert buttons[3].step == "all"
+    if figure_module is crime_dashboard_figures:
+        assert buttons[1].count == 7
+        assert buttons[1].step == "day"
+        assert buttons[2].count == 1
+        assert buttons[2].step == "month"
+        assert buttons[3].count == 1
+        assert buttons[3].step == "year"
+    else:
+        assert buttons[1].count == 6
+        assert buttons[2].count == 29
+        assert buttons[3].step == "all"
+    assert figure.layout.xaxis.rangeslider.visible is True
     assert figure.layout.xaxis.range[1] == LATEST_DAY
     assert figure.layout.xaxis.range[0] < figure.layout.xaxis.range[1]
 
