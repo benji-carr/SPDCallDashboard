@@ -683,12 +683,16 @@ def create_app() -> Dash:
             analysis_state=analysis_state,
         )
         start, end = analysis_state["start_date"], analysis_state["end_date"]
-        # A same-day selection needs a nonzero viewport within that same day.
+        presentation_range = [start, end]
         if start == end:
+            # Show the incoming daily line segment without expanding analysis.
+            selected_day = pd.Timestamp(start)
+            presentation_range = [selected_day - pd.Timedelta(days=1), selected_day]
+            # Preserve the existing UI revision token independently of the viewport.
             end += " 23:59:59.999"
         fig.update_layout(showlegend=show_legend, autosize=True,
                           uirevision=f"crime-analysis-{start}-{end}",
-                          xaxis_range=[start, end])
+                          xaxis_range=presentation_range)
         return fig
 
     def build_crime_map_figure(analysis_state, show_colorbar, text_filter):

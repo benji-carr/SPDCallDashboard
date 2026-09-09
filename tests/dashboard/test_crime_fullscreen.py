@@ -52,6 +52,7 @@ def _build_stub_app(
     crime_map_capture=None,
     crime_daily_capture=None,
     crime_start="2026-09-01",
+    crime_context=None,
 ):
     monkeypatch.setattr(
         app_module,
@@ -61,7 +62,7 @@ def _build_stub_app(
     monkeypatch.setattr(
         app_module,
         "load_crime_dashboard_context",
-        lambda: _stub_crime_context(crime_start),
+        lambda: crime_context if crime_context is not None else _stub_crime_context(crime_start),
     )
     monkeypatch.setattr(
         app_module,
@@ -441,8 +442,61 @@ def test_manual_dates_drive_daily_viewport_and_period_label(monkeypatch):
     assert "Last" not in duration and "Latest" not in duration
     same_day = state_callback("2026-09-02", "2026-09-02", None, [], [])
     figure = app.callback_map["crime-daily-figure.figure"]["callback"].__wrapped__(same_day, [])
-    assert list(figure.layout.xaxis.range) == ["2026-09-02", "2026-09-02 23:59:59.999"]
+    assert list(figure.layout.xaxis.range) == [pd.Timestamp("2026-09-01"), pd.Timestamp("2026-09-02")]
+    assert same_day["start_date"] == same_day["end_date"] == "2026-09-02"
     assert app.callback_map[key]["callback"].__wrapped__(same_day) == "(Latest day)"
+
+
+@pytest.mark.parametrize("selected_date", ["2026-09-06", "2026-09-01", "2026-01-01", "2024-03-01"])
+def test_same_day_presentation_contains_daily_segment_without_expanding_analysis(monkeypatch, selected_date):
+    from copy import deepcopy
+    from dashboard.crime_dashboard_figures import make_daily_figure
+    from dashboard.crime_filters import filter_crime_records
+
+    selected_day = pd.Timestamp(selected_date)
+    records = pd.DataFrame({
+        "offense_date": pd.date_range(end=selected_day, periods=10, freq="D"),
+        "offense_id": range(10), "report_number": range(10),
+        "event_importance_bin": ["property crime"] * 10,
+        "offense_sub_category": ["theft"] * 10,
+        "mcpp_neighborhood": ["downtown"] * 10,
+    })
+    map_capture = {}
+    app = _build_stub_app(monkeypatch, crime_context={"valid_time": records},
+                          crime_map_capture=map_capture)
+    # Exercise the real data preparation and traces through the cached wrapper.
+    monkeypatch.setattr(app_module, "make_crime_daily_figure", make_daily_figure)
+    state_callback = app.callback_map["crime-analysis-state-store.data"]["callback"].__wrapped__
+    state = state_callback(selected_date, selected_date, ["property crime"], [], [])
+    before = deepcopy(state)
+    daily_callback = app.callback_map["crime-daily-figure.figure"]["callback"].__wrapped__
+    figure = daily_callback(state, [])
+    start, end = map(pd.Timestamp, figure.layout.xaxis.range)
+    assert (start, end) == (selected_day - pd.Timedelta(days=1), selected_day)
+    assert end > start
+    assert state == before
+    assert state["start_date"] == state["end_date"] == selected_date
+    assert [trace.name for trace in figure.data] == ["Daily reported offenses", "7-day average"]
+    for trace in figure.data:
+        assert trace.mode == "lines"
+        x = pd.DatetimeIndex(trace.x)
+        visible = x[(x >= start) & (x <= end)]
+        assert list(visible) == [start, selected_day]
+        assert x[-1] == end and x[-1] > start
+        assert pd.notna(trace.y[-2:]).all()
+    assert figure.layout.uirevision == f"crime-analysis-{selected_date}-{selected_date} 23:59:59.999"
+    assert figure.layout.xaxis.uirevision is None
+
+    map_key = next(key for key in app.callback_map if "crime-map-graph-container" in key)
+    app.callback_map[map_key]["callback"].__wrapped__(state, [], "")
+    assert map_capture["point_start_date"] == map_capture["point_end_date"] == selected_date
+    assert map_capture["analysis_state"] == before
+    assert filter_crime_records(records, map_capture["analysis_state"]).offense_id.tolist() == [9]
+
+    # A multi-day analysis still uses its exact requested bounds.
+    multi_start = (selected_day - pd.Timedelta(days=5)).date().isoformat()
+    multi = state_callback(multi_start, selected_date, ["property crime"], [], [])
+    assert list(daily_callback(multi, []).layout.xaxis.range) == [multi_start, selected_date]
 
 
 def test_independent_date_edits_normalize_and_invalid_edits_revert(monkeypatch):
