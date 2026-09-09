@@ -3,6 +3,7 @@ import json
 import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
+from dashboard.crime_filters import filter_crime_records
 
 from dashboard.spd_config import (
     PAPER_BG,
@@ -92,6 +93,7 @@ def get_dataset_relative_daily_window(data: pd.DataFrame) -> dict:
 def prepare_daily_event_data(
     context: dict,
     selected_bins: list[str],
+    analysis_state: dict | None = None,
 ) -> tuple[pd.DataFrame, dict]:
     valid_time = context["valid_time"].copy()
 
@@ -126,6 +128,8 @@ def prepare_daily_event_data(
     valid_time["date"] = valid_time[TIME_COLUMN].dt.normalize()
 
     window = get_dataset_relative_daily_window(valid_time)
+    # Keep history for the slider and rolling average, with shared dimensions.
+    valid_time = filter_crime_records(valid_time, analysis_state, include_dates=False)
 
     plot_start_day = window["plot_start_day"]
     plot_end_day = window["plot_end_day"]
@@ -204,6 +208,7 @@ def make_plotly_safe_customdata(
 def make_daily_figure(
     context: dict,
     selected_bins: list[str],
+    analysis_state: dict | None = None,
 ) -> go.Figure:
     combo_label = make_crime_combo_label(selected_bins)
     combo_color = get_combo_color(selected_bins)
@@ -211,6 +216,7 @@ def make_daily_figure(
     daily_volume, window = prepare_daily_event_data(
         context=context,
         selected_bins=selected_bins,
+        analysis_state=analysis_state,
     )
 
     fig = go.Figure()
@@ -278,28 +284,10 @@ def make_daily_figure(
                 borderwidth=1,
                 font=dict(size=10),
                 buttons=[
-                    dict(
-                        count=1,
-                        label="1D",
-                        step="day",
-                        stepmode="backward",
-                    ),
-                    dict(
-                        count=6,
-                        label="1W",
-                        step="day",
-                        stepmode="backward",
-                    ),
-                    dict(
-                        count=29,
-                        label="1M",
-                        step="day",
-                        stepmode="backward",
-                    ),
-                    dict(
-                        label="1Y",
-                        step="all",
-                    ),
+                    dict(count=1, label="1D", step="day", stepmode="backward"),
+                    dict(count=7, label="1W", step="day", stepmode="backward"),
+                    dict(count=1, label="1M", step="month", stepmode="backward"),
+                    dict(count=1, label="1Y", step="year", stepmode="backward"),
                 ],
             ),
             rangeslider=dict(
@@ -474,6 +462,7 @@ def make_map_figure(
     point_end_date: str | None = None,
     show_colorbar: bool = False,
     point_filters: dict | None = None,
+    analysis_state: dict | None = None,
 ) -> go.Figure:
     event_mcpp = context["event_mcpp"].copy()
     unmappable_events = context.get("unmappable_events", pd.DataFrame()).copy()
@@ -604,6 +593,12 @@ def make_map_figure(
 
     latest_available_day = event_mcpp[TIME_COLUMN].dt.normalize().max()
     past_year_start = latest_available_day - pd.Timedelta(days=364)
+
+    if analysis_state:
+        past_year_start = pd.Timestamp(analysis_state["start_date"])
+        latest_available_day = pd.Timestamp(analysis_state["end_date"])
+        event_mcpp = filter_crime_records(event_mcpp, analysis_state)
+        unmappable_events = filter_crime_records(unmappable_events, analysis_state)
 
     past_year_events = event_mcpp[
         event_mcpp[TIME_COLUMN]
@@ -764,7 +759,8 @@ def make_map_figure(
                 "len": 0.62,
             },
             showscale=show_colorbar,
-            name="Past-year total events per 1,000 residents",
+            name=("Selected-period total events per 1,000 residents" if analysis_state
+                  else "Past-year total events per 1,000 residents"),
             showlegend=False,
             customdata=choropleth_gdf[
                 [
@@ -781,7 +777,7 @@ def make_map_figure(
                 f"Type of Crime: {combo_label}<br>"
                 "Population: %{customdata[1]:,.0f}<br>"
                 "<br>"
-                "<b>Total past-year events: %{customdata[3]:,}</b><br>"
+                "<b>Total events in shading period: %{customdata[3]:,}</b><br>"
                 "Mappable point events: %{customdata[4]:,}<br>"
                 "Unmappable neighborhood-assigned events: %{customdata[5]:,}<br>"
                 "Total events per 1,000 residents: %{customdata[2]:.1f}"
@@ -975,7 +971,7 @@ def make_map_figure(
                     "<b>Neighborhood:</b> %{customdata[6]}<br>"
                     "<br>"
                     "<b>Population:</b> %{customdata[7]}<br>"
-                    "<b>Total past-year neighborhood events:</b> %{customdata[8]}<br>"
+                    "<b>Total neighborhood events in shading period:</b> %{customdata[8]}<br>"
                     "<b>Mappable neighborhood events:</b> %{customdata[9]}<br>"
                     "<b>Unmappable neighborhood-assigned events:</b> %{customdata[10]}<br>"
                     "<b>Total events per 1,000 residents:</b> %{customdata[11]}"
@@ -987,8 +983,9 @@ def make_map_figure(
     fig.update_layout(
         title=dict(
             text=(
-                "Reported Crime Offenses Per 1,000 Residents In the Past Year"
-                f"<br><sup>Type of Crime: {combo_label}</sup>"
+                ("Reported Crime Offenses Per 1,000 Residents — Selected Period"
+                 if analysis_state else "Reported Crime Offenses Per 1,000 Residents In the Past Year")
+                + f"<br><sup>Type of Crime: {combo_label}</sup>"
             ),
             x=0.01,
             xanchor="left",

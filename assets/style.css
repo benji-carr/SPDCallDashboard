@@ -886,3 +886,59 @@ body,
 .floating-control-panel .Select-placeholder {
     color: #777777;
 }
+
+/* Crime analysis controls occupy normal flow above the visualizations. */
+.crime-app-shell { display: flex; flex-direction: column; }
+.crime-page-heading {
+    display: flex; justify-content: space-between; align-items: center;
+    gap: 12px; padding: 8px 12px; color: #bbbbbb; font-size: 11px;
+}
+.crime-page-heading h1 { margin: 0; font-size: 19px; color: white; }
+.crime-analysis-controls {
+    display: grid; grid-template-columns: minmax(240px, 1.2fr) repeat(3, minmax(0, 1fr));
+    gap: 12px; padding: 10px 12px; background: #1c1c1c;
+    border-block: 1px solid #3b3b3b; flex-shrink: 0;
+}
+.crime-analysis-controls label {
+    display: block; margin-bottom: 6px; color: #dddddd; font-size: 12px; font-weight: 600;
+}
+.crime-analysis-control { min-width: 0; color: #111111; font-size: 12px; }
+.crime-analysis-period-values {
+    display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px;
+    color: #fbbf24; font-size: 16px; font-weight: 600;
+}
+@media screen and (max-width: 1100px) {
+    .crime-analysis-controls { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media screen and (max-width: 900px) {
+    .crime-app-shell { height: calc(100dvh - 36px) !important; overflow-y: auto !important; }
+    .crime-app-shell .crime-dashboard-grid {
+        height: auto !important; min-height: 800px; flex: none !important;
+        grid-template-rows: 400px 400px !important; overflow: visible !important;
+    }
+    .crime-app-shell .daily-panel { display: block !important; grid-column: 1 !important; grid-row: 2 !important; }
+    .crime-page-heading { flex-wrap: wrap; }
+}
+@media screen and (max-width: 520px) {
+    .crime-analysis-controls { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* Compact keyboard-editable dates that read as part of the yellow summary. */
+#crime-analysis-period-label {
+    display: inline-flex; flex-wrap: wrap; align-items: baseline; gap: 5px;
+}
+.crime-analysis-date-caption { color: #dddddd; font-size: 12px; font-weight: 600; }
+.crime-analysis-date-caption + .crime-analysis-date-input { margin-right: 9px; }
+.crime-analysis-date-input {
+    width: 14ch; min-width: 14ch; flex: 0 0 14ch;
+    box-sizing: content-box; padding: 0;
+    background: transparent; border: 0; border-bottom: 1px solid transparent;
+    border-radius: 0; outline: none; box-shadow: none;
+    color: #fbbf24; font: inherit; font-size: 14px; font-weight: 600;
+}
+.crime-analysis-date-input:hover {
+    color: #fcd34d; border-bottom-color: rgba(251, 191, 36, 0.35);
+}
+.crime-analysis-date-input:focus {
+    color: #fde68a; border-bottom-color: #fbbf24;
+}

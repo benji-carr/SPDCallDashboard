@@ -566,6 +566,13 @@ def load_crime_dashboard_context() -> dict[str, Any]:
         mapped_event_ids=mapped_event_ids,
     )
 
+    # Assign analytical neighborhoods without dropping records lacking coordinates.
+    lookup = event_mcpp_lookup.drop_duplicates(EVENT_ID_COLUMN).set_index(EVENT_ID_COLUMN)
+    valid_time["mcpp_neighborhood"] = normalize_neighborhood_name(
+        valid_time[EVENT_ID_COLUMN].map(lookup["mcpp_neighborhood"])
+        .fillna(valid_time[NEIGHBORHOOD_COLUMN])
+    )
+
     neighborhood_population = load_neighborhood_population()
 
     years_observed = calculate_years_observed(valid_time)
