@@ -101,7 +101,7 @@ jobs:
       - name: Open and merge refresh pull request
         if: steps.commit_refresh.outputs.changed == 'true'
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ secrets.REFRESH_PR_TOKEN }}
         run: |
           pr_url="$(
             gh pr create \
