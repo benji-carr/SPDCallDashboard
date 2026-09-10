@@ -10,4 +10,4 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for the Git workflow and contribution pro
 
 ## Roadmap
 
-Development tasks and planned features are tracked in GitHub Issues.
+Development tasks and planned features are tracked in GitHub Issues. Github Issues labeled STAGING are issues regarding the v1.1 currently in development.
