@@ -20,6 +20,7 @@ jobs:
 
     env:
       REFRESH_BRANCH: automation/daily-data-refresh-${{ github.run_id }}
+      CARTO_BASEMAP_API_KEY: ${{ secrets.CARTO_BASEMAP_API_KEY }}
 
     steps:
       - name: Check out main
