@@ -114,5 +114,6 @@ jobs:
           echo "Created pull request: $pr_url"
 
           gh pr merge "$pr_url" \
+            --auto \
             --squash \
             --delete-branch
