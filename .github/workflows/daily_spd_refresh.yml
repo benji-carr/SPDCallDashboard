@@ -20,6 +20,7 @@ jobs:
 
     env:
       REFRESH_BRANCH: automation/daily-data-refresh-${{ github.run_id }}
+      CARTO_BASEMAP_API_KEY: ${{ secrets.CARTO_BASEMAP_API_KEY }}
 
     steps:
       - name: Check out main
@@ -101,7 +102,7 @@ jobs:
       - name: Open and merge refresh pull request
         if: steps.commit_refresh.outputs.changed == 'true'
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ secrets.REFRESH_PR_TOKEN }}
         run: |
           pr_url="$(
             gh pr create \
@@ -114,5 +115,6 @@ jobs:
           echo "Created pull request: $pr_url"
 
           gh pr merge "$pr_url" \
+            --auto \
             --squash \
             --delete-branch
