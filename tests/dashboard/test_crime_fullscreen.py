@@ -207,7 +207,7 @@ def test_crime_fullscreen_overlay_rebuilds_map_with_current_filters(monkeypatch)
     assert title == "Map view | 2026-09-01 to 2026-09-02 | 2 visible points"
     assert figure.data
     assert capture == {
-        "selected_bins": ["violent", "property"],
+        "selected_bins": ["crimes against persons", "crimes against property"],
         "point_start_date": "2026-09-01",
         "point_end_date": "2026-09-02",
         "show_colorbar": True,
@@ -234,13 +234,13 @@ def test_crime_fullscreen_overlay_rebuilds_daily_chart_with_legend_state(monkeyp
     assert overlay_class == "fullscreen-overlay"
     assert title == "Daily crime events"
     assert figure.layout.showlegend is True
-    assert capture == {"selected_bins": ["violent", "property"], "analysis_state": _analysis_state()}
+    assert capture == {"selected_bins": ["crimes against persons", "crimes against property"], "analysis_state": _analysis_state()}
 
 
 def _analysis_state(subcategories=None, neighborhoods=None):
     return {
         "start_date": "2026-09-01", "end_date": "2026-09-02",
-        "crime_categories": ["violent", "property"],
+        "crime_categories": ["crimes against persons", "crimes against property"],
         "crime_subcategories": subcategories or [], "neighborhoods": neighborhoods or [],
     }
 
@@ -265,7 +265,9 @@ def test_crime_type_control_has_individual_options_and_list_state(monkeypatch):
     assert control.multi is True
     assert control.value == categories
     assert [option["value"] for option in control.options] == categories
-    assert len(control.options) == 3
+    assert [option["label"] for option in control.options] == [
+        "Crimes Against Persons", "Crimes Against Property", "Crimes Against Society / Other",
+    ]
     callback = app.callback_map["crime-analysis-state-store.data"]["callback"].__wrapped__
     for selected in [categories, categories[1:], categories[1:2]]:
         state = callback("2026-09-02", "2026-09-02", selected, [], [])
@@ -311,7 +313,7 @@ def test_analysis_state_callback_defaults_and_selections(monkeypatch):
         "crime_subcategories": [], "neighborhoods": [],
     }
     state = callback("2026-09-01", "2026-09-02",
-                     ["violent", "property"], ["theft"], ["downtown", "ballard"])
+                     ["crimes against persons", "crimes against property"], ["theft"], ["downtown", "ballard"])
     assert json.loads(json.dumps(state)) == state
     assert state == _analysis_state(["theft"], ["downtown", "ballard"])
     key = "crime-analysis-period-duration.children"
@@ -457,7 +459,7 @@ def test_same_day_presentation_contains_daily_segment_without_expanding_analysis
     records = pd.DataFrame({
         "offense_date": pd.date_range(end=selected_day, periods=10, freq="D"),
         "offense_id": range(10), "report_number": range(10),
-        "event_importance_bin": ["property crime"] * 10,
+        "event_importance_bin": ["crimes against property"] * 10,
         "offense_sub_category": ["theft"] * 10,
         "mcpp_neighborhood": ["downtown"] * 10,
     })
@@ -467,7 +469,7 @@ def test_same_day_presentation_contains_daily_segment_without_expanding_analysis
     # Exercise the real data preparation and traces through the cached wrapper.
     monkeypatch.setattr(app_module, "make_crime_daily_figure", make_daily_figure)
     state_callback = app.callback_map["crime-analysis-state-store.data"]["callback"].__wrapped__
-    state = state_callback(selected_date, selected_date, ["property crime"], [], [])
+    state = state_callback(selected_date, selected_date, ["crimes against property"], [], [])
     before = deepcopy(state)
     daily_callback = app.callback_map["crime-daily-figure.figure"]["callback"].__wrapped__
     figure = daily_callback(state, [])
@@ -495,7 +497,7 @@ def test_same_day_presentation_contains_daily_segment_without_expanding_analysis
 
     # A multi-day analysis still uses its exact requested bounds.
     multi_start = (selected_day - pd.Timedelta(days=5)).date().isoformat()
-    multi = state_callback(multi_start, selected_date, ["property crime"], [], [])
+    multi = state_callback(multi_start, selected_date, ["crimes against property"], [], [])
     assert list(daily_callback(multi, []).layout.xaxis.range) == [multi_start, selected_date]
 
 

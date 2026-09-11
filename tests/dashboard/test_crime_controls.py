@@ -109,12 +109,12 @@ def test_neighborhood_options_do_not_exclude_citywide_records():
         "offense_id": list(range(len(names))), "report_number": list(range(len(names))),
         "offense_date": pd.to_datetime(["2026-09-01"] + ["2026-09-02"] * (len(names) - 1)),
         "mcpp_neighborhood": names,
-        "event_importance_bin": ["property crime"] * len(names),
+        "event_importance_bin": ["crimes against property"] * len(names),
     })
-    state = make_analysis_state(None, ["property crime"], [], [],
-                                "2026-09-01", "2026-09-02", ["property crime"])
+    state = make_analysis_state(None, ["crimes against property"], [], [],
+                                "2026-09-01", "2026-09-02", ["crimes against property"])
     assert len(filter_crime_records(records, state)) == len(names)
-    daily, _ = prepare_daily_event_data({"valid_time": records}, ["property crime"], state)
+    daily, _ = prepare_daily_event_data({"valid_time": records}, ["crimes against property"], state)
     assert daily.reported_offenses.sum() == len(names) - 1  # Existing first-day exclusion.
     state["neighborhoods"] = ["downtown"]
     assert filter_crime_records(records, state).offense_id.tolist() == [7, 8]

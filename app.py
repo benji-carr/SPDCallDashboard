@@ -36,8 +36,9 @@ from dashboard.crime_controls import (
     validate_analysis_dates, crime_chart_dates,
 )
 
+from dashboard.crime_classification import CANONICAL_CRIME_TYPES as TARGET_CRIME_CATEGORIES
+
 from dashboard.crime_dashboard_figures import (
-    TARGET_CRIME_CATEGORIES,
     make_daily_figure as make_crime_daily_figure,
     make_map_figure as make_crime_map_figure,
 )

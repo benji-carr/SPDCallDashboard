@@ -51,11 +51,11 @@ LATEST_DAY = pd.Timestamp("2026-08-31")
                         ),
                         CRIME_EVENT_ID_COLUMN: [1, 2, 3],
                         CRIME_ROW_ID_COLUMN: [11, 12, 13],
-                        "event_importance_bin": ["violent crime"] * 3,
+                        "event_importance_bin": ["crimes against persons"] * 3,
                     }
                 )
             },
-            ["violent crime"],
+            ["crimes against persons"],
         ),
     ],
 )
