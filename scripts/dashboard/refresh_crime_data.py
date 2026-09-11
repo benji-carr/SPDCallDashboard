@@ -1,5 +1,5 @@
 import logging
-from datetime import date, timedelta
+from datetime import timedelta
 from pathlib import Path
 
 import pandas as pd
@@ -63,6 +63,7 @@ def get_default_start_date(
         - timedelta(days=rolling_window_days)
     ).isoformat()
 
+
 def validate_positive_int(value: int, name: str) -> None:
     if isinstance(value, bool) or not isinstance(value, int):
         raise ValueError(f"{name} must be an integer")
@@ -104,20 +105,21 @@ def full_refresh_crime_snapshot(
         validate_positive_int(max_pages, "max_pages")
 
     logging.info(
-        "Starting full SPD Crime snapshot refresh: start_date=%s, date_column=%s",
+        "Starting full SPD Crime snapshot refresh: "
+        "start_date=%s, date_column=%s",
         start_date,
         date_column,
     )
 
     df = load_crime_dataset(
-       start_date=start_date,
-       page_size=page_size,
-       max_pages=max_pages,
-       timeout=timeout,
-       date_column=date_column,
-       max_retries=max_retries,
-       retry_backoff_seconds=retry_backoff_seconds,
-       )
+        start_date=start_date,
+        page_size=page_size,
+        max_pages=max_pages,
+        timeout=timeout,
+        date_column=date_column,
+        max_retries=max_retries,
+        retry_backoff_seconds=retry_backoff_seconds,
+    )
 
     required_time_columns = [
         EVENT_DATE_COLUMN,
@@ -132,7 +134,8 @@ def full_refresh_crime_snapshot(
 
     if missing_time_columns:
         raise ValueError(
-            f"Crime data is missing required time columns: {missing_time_columns}"
+            f"Crime data is missing required time columns: "
+            f"{missing_time_columns}"
         )
 
     df[EVENT_DATE_COLUMN] = pd.to_datetime(
@@ -157,9 +160,18 @@ def full_refresh_crime_snapshot(
         source_date_column=date_column,
     )
 
-    logging.info("Saved full SPD Crime snapshot with %s rows", len(df))
-    logging.info("Saved SPD Crime snapshot to %s", snapshot_path)
-    logging.info("Saved SPD Crime metadata to %s", metadata_path)
+    logging.info(
+        "Saved full SPD Crime snapshot with %s rows",
+        len(df),
+    )
+    logging.info(
+        "Saved SPD Crime snapshot to %s",
+        snapshot_path,
+    )
+    logging.info(
+        "Saved SPD Crime metadata to %s",
+        metadata_path,
+    )
 
     return snapshot_path, metadata_path
 
@@ -173,22 +185,37 @@ def incremental_refresh_crime_snapshot(
     max_retries: int = DEFAULT_MAX_RETRIES,
     retry_backoff_seconds: float = DEFAULT_RETRY_BACKOFF_SECONDS,
 ) -> tuple[Path, Path]:
-    validate_positive_int(rolling_window_days, "rolling_window_days")
-    validate_nonnegative_int(overlap_days, "overlap_days")
-    validate_positive_int(page_size, "page_size")
+    validate_positive_int(
+        rolling_window_days,
+        "rolling_window_days",
+    )
+    validate_nonnegative_int(
+        overlap_days,
+        "overlap_days",
+    )
+    validate_positive_int(
+        page_size,
+        "page_size",
+    )
     validate_timeout(timeout)
 
     output_directory = Path(output_directory)
 
     try:
-        existing_df, metadata = load_crime_snapshot(output_directory)
+        existing_df, metadata = load_crime_snapshot(
+            output_directory
+        )
     except FileNotFoundError:
         start_date = get_default_start_date(
             rolling_window_days=rolling_window_days,
+            timeout=timeout,
+            max_retries=max_retries,
+            retry_backoff_seconds=retry_backoff_seconds,
         )
 
         logging.info(
-            "No existing crime snapshot found. Running initial full refresh from %s",
+            "No existing crime snapshot found. "
+            "Running initial full refresh from %s",
             start_date,
         )
 
@@ -211,7 +238,8 @@ def incremental_refresh_crime_snapshot(
 
     if missing_key_columns:
         raise ValueError(
-            f"Existing snapshot is missing deduplication columns: {missing_key_columns}"
+            "Existing snapshot is missing deduplication "
+            f"columns: {missing_key_columns}"
         )
 
     required_time_columns = [
@@ -227,7 +255,8 @@ def incremental_refresh_crime_snapshot(
 
     if missing_time_columns:
         raise ValueError(
-            f"Existing snapshot is missing required time columns: {missing_time_columns}"
+            "Existing snapshot is missing required time "
+            f"columns: {missing_time_columns}"
         )
 
     existing_df = existing_df.copy()
@@ -242,17 +271,24 @@ def incremental_refresh_crime_snapshot(
         errors="coerce",
     )
 
-    latest_existing_report_timestamp = existing_df[REFRESH_DATE_COLUMN].max()
+    latest_existing_report_timestamp = (
+        existing_df[REFRESH_DATE_COLUMN].max()
+    )
 
     if pd.isna(latest_existing_report_timestamp):
-        raise ValueError("Existing snapshot has no valid report_date_time values")
+        raise ValueError(
+            "Existing snapshot has no valid "
+            "report_date_time values"
+        )
 
     fetch_start_date = (
-        latest_existing_report_timestamp.date() - timedelta(days=overlap_days)
+        latest_existing_report_timestamp.date()
+        - timedelta(days=overlap_days)
     ).isoformat()
 
     logging.info(
-        "Starting incremental SPD Crime refresh from %s using %s with overlap_days=%s",
+        "Starting incremental SPD Crime refresh from %s "
+        "using %s with overlap_days=%s",
         fetch_start_date,
         REFRESH_DATE_COLUMN,
         overlap_days,
@@ -268,7 +304,10 @@ def incremental_refresh_crime_snapshot(
         retry_backoff_seconds=retry_backoff_seconds,
     )
 
-    logging.info("Fetched %s recent SPD Crime rows", len(new_df))
+    logging.info(
+        "Fetched %s recent SPD Crime rows",
+        len(new_df),
+    )
 
     combined_df = pd.concat(
         [existing_df, new_df],
@@ -297,13 +336,18 @@ def incremental_refresh_crime_snapshot(
         before_deduplication - len(combined_df),
     )
 
-    latest_combined_offense_timestamp = combined_df[EVENT_DATE_COLUMN].max()
+    latest_combined_offense_timestamp = (
+        combined_df[EVENT_DATE_COLUMN].max()
+    )
 
     if pd.isna(latest_combined_offense_timestamp):
-        raise ValueError("Combined snapshot has no valid offense_date values")
+        raise ValueError(
+            "Combined snapshot has no valid offense_date values"
+        )
 
-    cutoff_timestamp = latest_combined_offense_timestamp - timedelta(
-        days=rolling_window_days
+    cutoff_timestamp = (
+        latest_combined_offense_timestamp
+        - timedelta(days=rolling_window_days)
     )
 
     combined_df = combined_df[
@@ -316,7 +360,8 @@ def incremental_refresh_crime_snapshot(
     ).reset_index(drop=True)
 
     logging.info(
-        "Final rolling crime snapshot has %s rows from %s to %s by %s",
+        "Final rolling crime snapshot has %s rows "
+        "from %s to %s by %s",
         len(combined_df),
         combined_df[EVENT_DATE_COLUMN].min(),
         combined_df[EVENT_DATE_COLUMN].max(),
@@ -330,8 +375,14 @@ def incremental_refresh_crime_snapshot(
         source_date_column=EVENT_DATE_COLUMN,
     )
 
-    logging.info("Saved SPD Crime snapshot to %s", snapshot_path)
-    logging.info("Saved SPD Crime metadata to %s", metadata_path)
+    logging.info(
+        "Saved SPD Crime snapshot to %s",
+        snapshot_path,
+    )
+    logging.info(
+        "Saved SPD Crime metadata to %s",
+        metadata_path,
+    )
 
     return snapshot_path, metadata_path
 
@@ -348,7 +399,9 @@ def main() -> None:
         fetch_source=lambda: fetch_latest_crime_dashboard_record(
             timeout=DEFAULT_TIMEOUT,
             max_retries=DEFAULT_MAX_RETRIES,
-            retry_backoff_seconds=DEFAULT_RETRY_BACKOFF_SECONDS,
+            retry_backoff_seconds=(
+                DEFAULT_RETRY_BACKOFF_SECONDS
+            ),
         )
     )
 
