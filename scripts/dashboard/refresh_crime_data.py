@@ -1,5 +1,5 @@
 import logging
-from datetime import date, timedelta
+from datetime import timedelta
 from pathlib import Path
 
 import pandas as pd
@@ -185,6 +185,9 @@ def incremental_refresh_crime_snapshot(
     except FileNotFoundError:
         start_date = get_default_start_date(
             rolling_window_days=rolling_window_days,
+            timeout=timeout,
+            max_retries=max_retries,
+            retry_backoff_seconds=retry_backoff_seconds,
         )
 
         logging.info(
