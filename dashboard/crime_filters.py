@@ -4,6 +4,9 @@ import pandas as pd
 
 
 def filter_crime_records(records, state, *, include_dates=True):
+    # Also protect callers using the full classified QA snapshot.
+    if "is_excluded_from_crime_analysis" in records.columns:
+        records = records.loc[~records["is_excluded_from_crime_analysis"]]
     if not state or records.empty:
         return records.copy()
     mask = pd.Series(True, index=records.index)

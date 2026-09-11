@@ -4,6 +4,7 @@ from typing import Any
 import geopandas as gpd
 import pandas as pd
 
+from dashboard.crime_classification import apply_crime_classification
 from dashboard.spd_config import (
     DATA_PROCESSED_DIR,
     GEO_PROCESSED_DIR,
@@ -55,6 +56,7 @@ def normalize_neighborhood_name(series: pd.Series) -> pd.Series:
     )
 
 def prepare_crime_snapshot(df: pd.DataFrame) -> pd.DataFrame:
+    """Prepare all source rows, retaining classification/exclusion evidence for QA."""
     out = df.copy()
 
     required_columns = [
@@ -134,7 +136,7 @@ def prepare_crime_snapshot(df: pd.DataFrame) -> pd.DataFrame:
         out[column] = clean_text_column(out[column])
 
     out["date"] = out[TIME_COLUMN].dt.date
-    out[CATEGORY_COLUMN] = out[CATEGORY_COLUMN].replace({"all other": "other (includes drug and sex offenses)"})
+    out = apply_crime_classification(out)
 
     # Compatibility columns for repurposing the calls-dashboard figure logic.
     # The calls dashboard filters by event_importance_bin.
@@ -529,18 +531,24 @@ def calculate_years_observed(valid_time: pd.DataFrame) -> float:
 
 
 def load_crime_dashboard_context() -> dict[str, Any]:
+    """Keep all classified rows in df; every analytical derivative uses analysis_df.
+
+    Classification inclusion is independent of timestamps and coordinates. Only
+    map points require valid coordinates; valid_time retains unmappable crimes.
+    """
     df, metadata = load_crime_snapshot(CRIME_OUTPUT_DIR)
 
     df = prepare_crime_snapshot(df)
+    analysis_df = df.loc[~df["is_excluded_from_crime_analysis"]].copy()
 
-    valid_time = df[
-        df[TIME_COLUMN].notna()
-        & df[EVENT_ID_COLUMN].notna()
+    valid_time = analysis_df[
+        analysis_df[TIME_COLUMN].notna()
+        & analysis_df[EVENT_ID_COLUMN].notna()
     ].copy()
 
     mcpp_boundaries = load_mcpp_boundaries()
 
-    mappable_events = prepare_mappable_events(df)
+    mappable_events = prepare_mappable_events(analysis_df)
 
     event_mcpp_lookup = build_or_load_event_mcpp_lookup(
         mappable_events=mappable_events,
@@ -562,7 +570,7 @@ def load_crime_dashboard_context() -> dict[str, Any]:
     )
 
     unmappable_events = prepare_unmappable_events(
-        df=df,
+        df=analysis_df,
         mapped_event_ids=mapped_event_ids,
     )
 

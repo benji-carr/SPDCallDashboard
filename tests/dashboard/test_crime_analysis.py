@@ -14,7 +14,7 @@ def records():
         "offense_id": list("abcdef"), "report_number": list("abcdef"),
         "offense_date": pd.to_datetime(["2026-08-30", "2026-09-01 23:59", "2026-09-01",
                                         "2026-09-02", "2026-09-01", "2026-09-01"], format="mixed"),
-        "event_importance_bin": ["property crime"] * 5 + ["violent crime"],
+        "event_importance_bin": ["crimes against property"] * 5 + ["crimes against persons"],
         "offense_sub_category": ["theft"] * 4 + ["fraud", "assault"],
         "mcpp_neighborhood": ["downtown"] * 3 + ["ballard", "downtown", "downtown"],
         "latitude": [47.6, 47.6, None, 47.6, 47.6, 47.6],
@@ -25,8 +25,8 @@ def records():
 @pytest.fixture
 def state():
     return make_analysis_state(
-        {"start": "2026-09-01", "end": "2026-09-01"}, ["property crime"],
-        ["theft"], ["downtown"], "2026-09-01", "2026-09-02", ["property crime"],
+        {"start": "2026-09-01", "end": "2026-09-01"}, ["crimes against property"],
+        ["theft"], ["downtown"], "2026-09-01", "2026-09-02", ["crimes against property"],
     )
 
 
@@ -43,12 +43,12 @@ def test_empty_dimensions_mean_all_and_multiple_neighborhoods_are_union(records,
 
 
 def test_daily_filter_retains_unmappable_and_history_for_navigation(records, state):
-    daily, window = prepare_daily_event_data({"valid_time": records}, ["property crime"], state)
+    daily, window = prepare_daily_event_data({"valid_time": records}, ["crimes against property"], state)
     assert daily.set_index("date").loc["2026-09-01", "reported_offenses"] == 2
     assert daily.set_index("date").loc["2026-09-02", "reported_offenses"] == 0
     assert window["plot_end_day"] == pd.Timestamp("2026-09-02")
     state["crime_subcategories"] = ["nonexistent"]
-    empty, _ = prepare_daily_event_data({"valid_time": records}, ["property crime"], state)
+    empty, _ = prepare_daily_event_data({"valid_time": records}, ["crimes against property"], state)
     assert empty.reported_offenses.sum() == 0
 
 

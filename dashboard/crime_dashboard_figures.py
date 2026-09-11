@@ -4,6 +4,12 @@ import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
 from dashboard.crime_filters import filter_crime_records
+from dashboard.crime_classification import (
+    CANONICAL_CRIME_TYPES,
+    CRIMES_AGAINST_PERSONS,
+    CRIMES_AGAINST_PROPERTY,
+    CRIMES_AGAINST_SOCIETY,
+)
 
 from dashboard.spd_config import (
     PAPER_BG,
@@ -24,17 +30,13 @@ from dashboard.crime_dashboard_data import (
 )
 
 
-TARGET_CRIME_CATEGORIES = [
-    "other (includes drug and sex offenses)",
-    "property crime",
-    "violent crime",
-]
+TARGET_CRIME_CATEGORIES = CANONICAL_CRIME_TYPES
 
 
 CRIME_CATEGORY_COLOR_MAP = {
-    "other (includes drug and sex offenses)": "#2F80ED",        # blue
-    "property crime": "#27AE60",                                # green
-    "violent crime": "#EB5757",                                 # red
+    CRIMES_AGAINST_SOCIETY: "#2F80ED",   # blue
+    CRIMES_AGAINST_PROPERTY: "#27AE60",  # green
+    CRIMES_AGAINST_PERSONS: "#EB5757",   # red
 }
 
 
@@ -53,7 +55,7 @@ def make_crime_combo_label(category_combo: list[str]) -> str:
     if len(category_combo) == len(TARGET_CRIME_CATEGORIES):
         return "All selected categories"
 
-    return " + ".join(category_combo)
+    return " + ".join(category.title() for category in category_combo)
 
 
 def get_dataset_relative_daily_window(data: pd.DataFrame) -> dict:
@@ -919,6 +921,8 @@ def make_map_figure(
         "Not available",
     )
 
+    point_events["crime_category_display"] = point_events[CATEGORY_COLUMN].str.title()
+
     for bin_name in TARGET_CRIME_CATEGORIES:
         if bin_name not in selected_bins:
             continue
@@ -935,7 +939,7 @@ def make_map_figure(
                 lat=bin_points[LAT_COL],
                 lon=bin_points[LON_COL],
                 mode="markers",
-                name=bin_name,
+                name=bin_name.title(),
                 legendgroup=bin_name,
                 showlegend=True,
                 marker=dict(
@@ -950,7 +954,7 @@ def make_map_figure(
                         ROW_ID_COLUMN,
                         "offense_time_display",
                         "report_time_display",
-                        "event_importance_bin",
+                        "crime_category_display",
                         SUB_CATEGORY_COLUMN,
                         "mcpp_neighborhood_display",
                         "population_display",
