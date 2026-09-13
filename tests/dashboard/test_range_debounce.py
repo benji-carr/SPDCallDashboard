@@ -70,19 +70,20 @@ advance(200);
 assert.equal(calls(final), no_update);
 advance(400);
 calls({autosize: true}); // Unrelated events neither cancel nor extend a range timer.
-advance(399);
+advance(149);
 assert.equal(commits.length, 0);
 advance(1);
 assert.equal(commits.length, 1);
 assert.equal(commits[0].id, 'crime-daily-relayout-debounced-store');
 assert.equal(commits[0].props.data['xaxis.autorange'], true);
+assert.equal(commits[0].at, 950);
 advance(199);
 assert.equal(commits.length, 1);
 advance(1);
 assert.equal(commits.length, 2);
 assert.equal(commits[1].id, 'calls-daily-relayout-debounced-store');
 assert.equal(commits[1].props.data, final);
-assert.equal(commits[1].at, 1400);
+assert.equal(commits[1].at, 1150);
 advance(2000);
 assert.equal(commits.length, 2);
 """
