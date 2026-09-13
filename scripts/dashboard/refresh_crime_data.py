@@ -24,7 +24,9 @@ DEDUPLICATION_KEY = ["offense_id"]
 DEFAULT_PAGE_SIZE = 5000
 DEFAULT_MAX_PAGES = None
 DEFAULT_TIMEOUT = 60.0
-DEFAULT_ROLLING_WINDOW_DAYS = 732
+# Timestamp cutoff preserves time of day: 734 is the minimum whole-day
+# lookback covering two complete 367-date periods, even after midnight.
+DEFAULT_ROLLING_WINDOW_DAYS = 734
 DEFAULT_OVERLAP_DAYS = 30
 DEFAULT_MAX_RETRIES = 3
 DEFAULT_RETRY_BACKOFF_SECONDS = 1.0

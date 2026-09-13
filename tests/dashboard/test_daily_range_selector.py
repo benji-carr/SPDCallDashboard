@@ -80,7 +80,9 @@ def test_daily_figures_expose_native_one_day_range_selector(
     else:
         assert buttons[1].count == 6
         assert buttons[2].count == 29
-        assert buttons[3].step == "all"
+        assert buttons[3].step == "year"
+        assert buttons[3].count == 1
+        assert buttons[3].stepmode == "backward"
     assert figure.layout.xaxis.rangeslider.visible is True
     assert figure.layout.xaxis.range[1] == LATEST_DAY
     assert figure.layout.xaxis.range[0] < figure.layout.xaxis.range[1]
@@ -101,7 +103,7 @@ def test_native_one_day_viewport_maps_to_its_ending_calendar_day():
     assert (start_date, end_date) == ("2026-08-31", "2026-08-31")
 
 
-def test_manual_multi_day_viewport_keeps_both_map_dates():
+def test_manual_multi_day_viewport_clamps_map_dates():
     start_date, end_date = extract_daily_visible_date_range(
         relayout_data={
             "xaxis.range": [
@@ -115,4 +117,4 @@ def test_manual_multi_day_viewport_keeps_both_map_dates():
         full_end="2026-08-31",
     )
 
-    assert (start_date, end_date) == ("2026-08-27", "2026-08-31")
+    assert (start_date, end_date) == ("2026-08-30", "2026-08-31")

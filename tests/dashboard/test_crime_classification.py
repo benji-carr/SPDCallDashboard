@@ -183,7 +183,7 @@ def test_context_reconciliation_exclusions_and_unmappable_analysis(monkeypatch):
     assert {"1", "2"} <= set(context["unmappable_events"].offense_id)
     assert set(filter_crime_records(prepared, None).offense_id) == set(included.offense_id)
     daily, _ = prepare_daily_event_data(context, CANONICAL_CRIME_TYPES)
-    assert daily.reported_offenses.sum() == len(EXPECTED) - 1
+    assert daily.reported_offenses.sum() == len(EXPECTED)
 
 
 def test_canonical_defaults_colors_and_labels():

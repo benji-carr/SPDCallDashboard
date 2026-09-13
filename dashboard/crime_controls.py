@@ -5,6 +5,7 @@ from datetime import date, timedelta
 
 from dash import dcc, html
 import pandas as pd
+from dashboard.analysis_windows import bound_analysis_dates, get_analysis_bounds
 
 
 def make_analysis_state(range_data, categories, subcategories, neighborhoods,
@@ -50,20 +51,9 @@ def format_analysis_date_input(value):
 
 def validate_analysis_dates(start, end, earliest, latest, *, clamp=False):
     """Return bounded ISO dates, or None while an edit is incomplete/invalid."""
-    try:
-        start = date.fromisoformat(parse_analysis_date(start))
-        end = date.fromisoformat(parse_analysis_date(end))
-        earliest, latest = _calendar_date(earliest), _calendar_date(latest)
-    except (TypeError, ValueError):
-        return None
-    if start > end:
-        return None
-    if clamp:
-        start = min(max(start, earliest), latest)
-        end = min(max(end, earliest), latest)
-    if not earliest <= start <= end <= latest:
-        return None
-    return start.isoformat(), end.isoformat()
+    return bound_analysis_dates(
+        parse_analysis_date(start), parse_analysis_date(end), earliest, latest, clamp=clamp,
+    )
 
 
 def crime_chart_dates(relayout, earliest, latest):
@@ -109,7 +99,7 @@ def crime_period_presets(latest_date):
         "1D": [end.isoformat(), end.isoformat() + " 23:59:59.999"],
         "1W": [(end - timedelta(days=7)).isoformat(), end.isoformat()],
         "1M": [_add_months(end, -1).isoformat(), end.isoformat()],
-        "1Y": [_add_months(end, -12).isoformat(), end.isoformat()],
+        "1Y": [day.date().isoformat() for day in get_analysis_bounds(end)],
     }
 
 

@@ -1,10 +1,16 @@
 from functools import lru_cache
+from copy import deepcopy
 import json
 import os
 
 import pandas as pd
 from dash import Dash, Input, Output, State, ctx, dcc, html, no_update
 from dash.exceptions import MissingCallbackContextException, PreventUpdate
+
+from dashboard.analysis_windows import (
+    get_history_bounds, get_analysis_bounds, bound_analysis_dates, chart_presentation_range,
+    chart_range_needs_correction,
+)
 
 from dashboard.spd_config import (
     TIME_COLUMN as CALL_TIME_COLUMN,
@@ -130,21 +136,9 @@ def get_full_dashboard_date_range(
     context: dict,
     time_column: str,
 ) -> tuple[str, str]:
-    valid_time = context["valid_time"].copy()
-
-    valid_dates = pd.to_datetime(
-        valid_time[time_column],
-        errors="coerce",
-    ).dropna()
-
-    latest_day = valid_dates.max().normalize()
-    earliest_available_day = valid_dates.min().normalize()
-    earliest_analysis_day = earliest_available_day + pd.Timedelta(days=1)
-
-    return (
-        earliest_analysis_day.date().isoformat(),
-        latest_day.date().isoformat(),
-    )
+    """Selectable analysis domain (kept under its old name for compatibility)."""
+    _, history_end = get_history_bounds(context["valid_time"][time_column])
+    return tuple(day.date().isoformat() for day in get_analysis_bounds(history_end))
 
 
 def clean_date_string(value) -> str | None:
@@ -169,56 +163,18 @@ def extract_daily_visible_date_range(
     full_start: str,
     full_end: str,
 ) -> tuple[str, str]:
-    if not relayout_data:
-        return default_start, default_end
-
-    if relayout_data.get("xaxis.autorange") is True:
-        return full_start, full_end
-
-    start_value = None
-    end_value = None
-
-    if (
-        "xaxis.range[0]" in relayout_data
-        and "xaxis.range[1]" in relayout_data
-    ):
-        start_value = relayout_data["xaxis.range[0]"]
-        end_value = relayout_data["xaxis.range[1]"]
-
-    elif (
-        "xaxis.range" in relayout_data
-        and isinstance(relayout_data["xaxis.range"], list)
-        and len(relayout_data["xaxis.range"]) >= 2
-    ):
-        start_value = relayout_data["xaxis.range"][0]
-        end_value = relayout_data["xaxis.range"][1]
-
-    start_date = clean_date_string(start_value)
-    end_date = clean_date_string(end_value)
-
-    if start_date is None or end_date is None:
-        return default_start, default_end
-
-    start_timestamp = pd.to_datetime(start_value, errors="coerce")
-    end_timestamp = pd.to_datetime(end_value, errors="coerce")
-
-    if (
-        pd.notna(start_timestamp)
-        and pd.notna(end_timestamp)
-        and end_timestamp - start_timestamp == pd.Timedelta(days=1)
-    ):
-        # Plotly's native 1D control yields a 24-hour viewport ending on the
-        # selected day. Map filters are inclusive calendar dates, so retain
-        # only that ending date rather than both viewport boundaries.
-        return end_date, end_date
-
-    return start_date, end_date
+    dates = crime_chart_dates(relayout_data, full_start, full_end)
+    return dates or bound_analysis_dates(
+        default_start, default_end, full_start, full_end, clamp=True,
+    )
 
 
 def get_range_from_store(
     range_store_data,
     default_start: str,
     default_end: str,
+    analysis_start: str | None = None,
+    analysis_end: str | None = None,
 ) -> tuple[str, str]:
     if not range_store_data:
         return default_start, default_end
@@ -229,7 +185,10 @@ def get_range_from_store(
     if start_date is None or end_date is None:
         return default_start, default_end
 
-    return start_date, end_date
+    return bound_analysis_dates(
+        start_date, end_date, analysis_start or get_analysis_bounds(default_end)[0],
+        analysis_end or default_end, clamp=True,
+    ) or (default_start, default_end)
 
 
 def count_map_points(fig) -> int:
@@ -538,9 +497,8 @@ def create_app() -> Dash:
 
     calls_context = load_calls_dashboard_context()
     crime_context = load_crime_dashboard_context()
-    earliest_crime_date = pd.to_datetime(
-        crime_context["valid_time"][CRIME_TIME_COLUMN], errors="coerce",
-    ).min().date().isoformat()
+    crime_history_start, crime_history_end = get_history_bounds(crime_context["valid_time"][CRIME_TIME_COLUMN])
+    call_history_start, call_history_end = get_history_bounds(calls_context["valid_time"][CALL_TIME_COLUMN])
 
     def make_options_from_series(series: pd.Series) -> list[dict[str, str]]:
         values = (
@@ -585,9 +543,8 @@ def create_app() -> Dash:
         CALL_TIME_COLUMN,
     )
 
-    full_call_start, full_call_end = get_full_dashboard_date_range(
-        calls_context,
-        CALL_TIME_COLUMN,
+    call_analysis_start, call_analysis_end = (
+        day.date().isoformat() for day in get_analysis_bounds(call_history_end)
     )
 
     default_crime_start, default_crime_end = get_default_map_date_range(
@@ -595,15 +552,16 @@ def create_app() -> Dash:
         CRIME_TIME_COLUMN,
     )
 
-    full_crime_start, full_crime_end = get_full_dashboard_date_range(
-        crime_context,
-        CRIME_TIME_COLUMN,
+    crime_analysis_start, crime_analysis_end = (
+        day.date().isoformat() for day in get_analysis_bounds(crime_history_end)
     )
 
     @lru_cache(maxsize=64)
     def cached_calls_daily_figure(
         selected_bin_value: str,
         show_legend: bool,
+        start_date: str = default_call_start,
+        end_date: str = default_call_end,
     ):
         selected_bins = decode_bin_combo(selected_bin_value)
 
@@ -615,7 +573,8 @@ def create_app() -> Dash:
         fig.update_layout(
             showlegend=show_legend,
             autosize=True,
-            uirevision="preserve-calls-daily-time-range",
+            uirevision=f"calls-analysis-{start_date}-{end_date}",
+            xaxis_range=chart_presentation_range(start_date, end_date, call_analysis_start),
         )
 
         return fig
@@ -675,21 +634,25 @@ def create_app() -> Dash:
         default_crime_start, default_crime_end, TARGET_CRIME_CATEGORIES,
     )
 
+    def bounded_crime_state(state):
+        state = state or default_crime_analysis_state
+        dates = validate_analysis_dates(
+            state.get("start_date"), state.get("end_date"),
+            crime_analysis_start, crime_analysis_end, clamp=True,
+        ) or (default_crime_start, default_crime_end)
+        return {**state, "start_date": dates[0], "end_date": dates[1]}
+
     @lru_cache(maxsize=64)
     def cached_crime_daily_figure(analysis_key, show_legend):
-        analysis_state = json.loads(analysis_key)
+        analysis_state = bounded_crime_state(json.loads(analysis_key))
         fig = make_crime_daily_figure(
             context=crime_context,
             selected_bins=analysis_state["crime_categories"],
             analysis_state=analysis_state,
         )
         start, end = analysis_state["start_date"], analysis_state["end_date"]
-        presentation_range = [start, end]
+        presentation_range = chart_presentation_range(start, end, crime_analysis_start)
         if start == end:
-            # Show the incoming daily line segment without expanding analysis.
-            selected_day = pd.Timestamp(start)
-            presentation_range = [selected_day - pd.Timedelta(days=1), selected_day]
-            # Preserve the existing UI revision token independently of the viewport.
             end += " 23:59:59.999"
         fig.update_layout(showlegend=show_legend, autosize=True,
                           uirevision=f"crime-analysis-{start}-{end}",
@@ -697,6 +660,7 @@ def create_app() -> Dash:
         return fig
 
     def build_crime_map_figure(analysis_state, show_colorbar, text_filter):
+        analysis_state = bounded_crime_state(analysis_state)
         fig = make_crime_map_figure(
             context=crime_context,
             selected_bins=analysis_state["crime_categories"],
@@ -1064,7 +1028,7 @@ def create_app() -> Dash:
                         make_analysis_controls(
                             default_crime_analysis_state, crime_category_options,
                             default_crime_category_value, crime_subcategory_options,
-                            crime_neighborhood_options, earliest_crime_date, full_crime_end,
+                            crime_neighborhood_options, crime_analysis_start, crime_analysis_end,
                         ),
 
                         html.Div(
@@ -1314,15 +1278,15 @@ def create_app() -> Dash:
         daily_relayout_data,
         current_range_data,
     ):
-        if not daily_relayout_data:
+        if crime_chart_dates(daily_relayout_data, call_analysis_start, call_analysis_end) is None:
             raise PreventUpdate
 
         start_date, end_date = extract_daily_visible_date_range(
             relayout_data=daily_relayout_data,
             default_start=default_call_start,
             default_end=default_call_end,
-            full_start=full_call_start,
-            full_end=full_call_end,
+            full_start=call_analysis_start,
+            full_end=call_analysis_end,
         )
 
         current_start, current_end = get_range_from_store(
@@ -1343,20 +1307,32 @@ def create_app() -> Dash:
         Output("daily-figure", "figure"),
         Input("importance-bin-filter", "value"),
         Input("legend-toggle", "value"),
+        Input("daily-visible-range-store", "data"),
+        Input("daily-figure", "relayoutData"),
     )
     def update_calls_daily_figure(
         selected_bin_value,
         legend_values,
+        range_store_data=None,
+        relayout_data=None,
     ):
         if legend_values is None:
             legend_values = []
 
         show_legend = "daily" in legend_values
+        start_date, end_date = get_range_from_store(range_store_data, default_call_start, default_call_end)
 
-        return cached_calls_daily_figure(
+        fig = cached_calls_daily_figure(
             selected_bin_value=selected_bin_value,
             show_legend=show_legend,
+            start_date=start_date, end_date=end_date,
         )
+        if chart_range_needs_correction(relayout_data, call_analysis_start, call_analysis_end):
+            fig = deepcopy(fig)
+            # A falsy UI revision reapplies the canonical range even when the
+            # bounded state itself did not change. Never mutate cached figures.
+            fig.update_layout(uirevision=None)
+        return fig
 
     @app.callback(
         Output("scatter-figure", "figure"),
@@ -1438,9 +1414,9 @@ def create_app() -> Dash:
             triggered_id = "crime-daily-figure" if relayout_data else "crime-analysis-start-date-input"
 
         if triggered_id == "crime-daily-figure":
-            dates = crime_chart_dates(relayout_data, earliest_crime_date, full_crime_end)
+            dates = crime_chart_dates(relayout_data, crime_analysis_start, crime_analysis_end)
             current = validate_analysis_dates(
-                current_start, current_end, earliest_crime_date, full_crime_end,
+                current_start, current_end, crime_analysis_start, crime_analysis_end,
             )
             # Ignore figure redraws that echo the current selection.
             if dates is None or dates == current:
@@ -1450,19 +1426,19 @@ def create_app() -> Dash:
         previous = analysis_state or default_crime_analysis_state
         previous_dates = validate_analysis_dates(
             previous.get("start_date"), previous.get("end_date"),
-            earliest_crime_date, full_crime_end,
+            crime_analysis_start, crime_analysis_end,
         ) or (default_crime_start, default_crime_end)
 
         if triggered_id == "crime-analysis-start-date-input":
             dates = validate_analysis_dates(
-                current_start, previous_dates[1], earliest_crime_date, full_crime_end,
+                current_start, previous_dates[1], crime_analysis_start, crime_analysis_end,
             )
             normalized = dates[0] if dates else previous_dates[0]
             return format_analysis_date_input(normalized), no_update
 
         if triggered_id == "crime-analysis-end-date-input":
             dates = validate_analysis_dates(
-                previous_dates[0], current_end, earliest_crime_date, full_crime_end,
+                previous_dates[0], current_end, crime_analysis_start, crime_analysis_end,
             )
             normalized = dates[1] if dates else previous_dates[1]
             return no_update, format_analysis_date_input(normalized)
@@ -1479,7 +1455,7 @@ def create_app() -> Dash:
     )
     def update_crime_analysis_state(start_date, end_date, categories, subcategories, neighborhoods):
         dates = validate_analysis_dates(
-            start_date, end_date, earliest_crime_date, full_crime_end,
+            start_date, end_date, crime_analysis_start, crime_analysis_end,
         )
         if dates is None:
             raise PreventUpdate
@@ -1494,18 +1470,23 @@ def create_app() -> Dash:
     )
     def update_crime_analysis_period(analysis_state):
         state = analysis_state or default_crime_analysis_state
-        return format_analysis_period_annotation(state, full_crime_end)
+        return format_analysis_period_annotation(state, crime_analysis_end)
 
     @app.callback(
         Output("crime-daily-figure", "figure"),
         Input("crime-analysis-state-store", "data"),
         Input("crime-legend-toggle", "value"),
+        Input("crime-daily-figure", "relayoutData"),
     )
-    def update_crime_daily_figure(analysis_state, legend_values):
-        return cached_crime_daily_figure(
+    def update_crime_daily_figure(analysis_state, legend_values, relayout_data=None):
+        fig = cached_crime_daily_figure(
             json.dumps(analysis_state or default_crime_analysis_state, sort_keys=True),
             "daily" in (legend_values or []),
         )
+        if chart_range_needs_correction(relayout_data, crime_analysis_start, crime_analysis_end):
+            fig = deepcopy(fig)
+            fig.update_layout(uirevision=None)
+        return fig
 
     @app.callback(
         Output("crime-map-graph-container", "children"),
@@ -1515,7 +1496,7 @@ def create_app() -> Dash:
         Input("crime-point-text-filter", "value"),
     )
     def update_crime_map_figure(analysis_state, legend_values, text_filter):
-        analysis_state = analysis_state or default_crime_analysis_state
+        analysis_state = bounded_crime_state(analysis_state)
         point_start_date = analysis_state["start_date"]
         point_end_date = analysis_state["end_date"]
         show_colorbar = "map_colorbar" in (legend_values or [])
@@ -1648,10 +1629,12 @@ def create_app() -> Dash:
 
         if fullscreen_target == "daily":
             show_legend = "daily" in legend_values
+            start_date, end_date = get_range_from_store(range_store_data, default_call_start, default_call_end)
 
             fig = cached_calls_daily_figure(
                 selected_bin_value=selected_bin_value,
                 show_legend=show_legend,
+                start_date=start_date, end_date=end_date,
             )
 
             return "fullscreen-overlay", "Daily crime events", fig
@@ -1680,7 +1663,7 @@ def create_app() -> Dash:
     def update_crime_fullscreen_overlay(
         fullscreen_target, analysis_state, legend_values, text_filter,
     ):
-        analysis_state = analysis_state or default_crime_analysis_state
+        analysis_state = bounded_crime_state(analysis_state)
         legend_values = legend_values or []
         if fullscreen_target is None:
             return "fullscreen-overlay hidden", "", {}
