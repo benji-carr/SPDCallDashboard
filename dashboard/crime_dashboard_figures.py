@@ -33,6 +33,13 @@ from dashboard.crime_dashboard_data import (
 
 TARGET_CRIME_CATEGORIES = CANONICAL_CRIME_TYPES
 
+# Point stacking is independent of the canonical category / legend order.
+CRIME_POINT_RENDER_ORDER = [
+    CRIMES_AGAINST_SOCIETY,
+    CRIMES_AGAINST_PROPERTY,
+    CRIMES_AGAINST_PERSONS,
+]
+
 
 CRIME_CATEGORY_COLOR_MAP = {
     CRIMES_AGAINST_SOCIETY: "#2F80ED",   # blue
@@ -899,7 +906,7 @@ def make_map_figure(
 
     point_events["crime_category_display"] = point_events[CATEGORY_COLUMN].str.title()
 
-    for bin_name in TARGET_CRIME_CATEGORIES:
+    for bin_name in CRIME_POINT_RENDER_ORDER:
         if bin_name not in selected_bins:
             continue
 
@@ -917,6 +924,7 @@ def make_map_figure(
                 mode="markers",
                 name=bin_name.title(),
                 legendgroup=bin_name,
+                legendrank=TARGET_CRIME_CATEGORIES.index(bin_name),
                 showlegend=True,
                 marker=dict(
                     size=8,

@@ -4,7 +4,7 @@ import json
 import os
 
 import pandas as pd
-from dash import Dash, Input, Output, State, ctx, dcc, html, no_update
+from dash import Dash, ClientsideFunction, Input, Output, State, ctx, dcc, html, no_update
 from dash.exceptions import MissingCallbackContextException, PreventUpdate
 
 from dashboard.analysis_windows import (
@@ -681,6 +681,10 @@ def create_app() -> Dash:
                 html.Div(
                     children=[
                         dcc.Store(
+                            id="calls-daily-relayout-debounced-store",
+                            data=None,
+                        ),
+                        dcc.Store(
                             id="daily-visible-range-store",
                             data={
                                 "start": default_call_start,
@@ -1013,6 +1017,10 @@ def create_app() -> Dash:
                 html.Div(
                     children=[
                         dcc.Store(
+                            id="crime-daily-relayout-debounced-store",
+                            data=None,
+                        ),
+                        dcc.Store(
                             id="crime-analysis-state-store",
                             data=default_crime_analysis_state,
                         ),
@@ -1268,9 +1276,17 @@ def create_app() -> Dash:
 
         return make_landing_page()
 
+    for graph_id, dashboard_name in [("daily-figure", "calls"), ("crime-daily-figure", "crime")]:
+        app.clientside_callback(
+            ClientsideFunction(namespace="range_debounce", function_name=dashboard_name),
+            Output(f"{dashboard_name}-daily-relayout-debounced-store", "data"),
+            Input(graph_id, "relayoutData"),
+            prevent_initial_call=True,
+        )
+
     @app.callback(
         Output("daily-visible-range-store", "data"),
-        Input("daily-figure", "relayoutData"),
+        Input("calls-daily-relayout-debounced-store", "data"),
         State("daily-visible-range-store", "data"),
         prevent_initial_call=True,
     )
@@ -1308,7 +1324,7 @@ def create_app() -> Dash:
         Input("importance-bin-filter", "value"),
         Input("legend-toggle", "value"),
         Input("daily-visible-range-store", "data"),
-        Input("daily-figure", "relayoutData"),
+        Input("calls-daily-relayout-debounced-store", "data"),
     )
     def update_calls_daily_figure(
         selected_bin_value,
@@ -1393,7 +1409,7 @@ def create_app() -> Dash:
     @app.callback(
         Output("crime-analysis-start-date-input", "value"),
         Output("crime-analysis-end-date-input", "value"),
-        Input("crime-daily-figure", "relayoutData"),
+        Input("crime-daily-relayout-debounced-store", "data"),
         Input("crime-analysis-start-date-input", "n_submit"),
         Input("crime-analysis-start-date-input", "n_blur"),
         Input("crime-analysis-end-date-input", "n_submit"),
@@ -1411,9 +1427,9 @@ def create_app() -> Dash:
             triggered_id = ctx.triggered_id
         except MissingCallbackContextException:
             # Direct callback unit tests do not have Dash callback context.
-            triggered_id = "crime-daily-figure" if relayout_data else "crime-analysis-start-date-input"
+            triggered_id = "crime-daily-relayout-debounced-store" if relayout_data else "crime-analysis-start-date-input"
 
-        if triggered_id == "crime-daily-figure":
+        if triggered_id == "crime-daily-relayout-debounced-store":
             dates = crime_chart_dates(relayout_data, crime_analysis_start, crime_analysis_end)
             current = validate_analysis_dates(
                 current_start, current_end, crime_analysis_start, crime_analysis_end,
@@ -1476,7 +1492,7 @@ def create_app() -> Dash:
         Output("crime-daily-figure", "figure"),
         Input("crime-analysis-state-store", "data"),
         Input("crime-legend-toggle", "value"),
-        Input("crime-daily-figure", "relayoutData"),
+        Input("crime-daily-relayout-debounced-store", "data"),
     )
     def update_crime_daily_figure(analysis_state, legend_values, relayout_data=None):
         fig = cached_crime_daily_figure(

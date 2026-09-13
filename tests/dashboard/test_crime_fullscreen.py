@@ -298,7 +298,7 @@ def test_crime_analysis_controls_and_state_ownership(monkeypatch):
         "crime-analysis-state-store", "crime-legend-toggle", "crime-point-text-filter",
     }
     assert {item["id"] for item in app.callback_map["crime-daily-figure.figure"]["inputs"]} == {
-        "crime-analysis-state-store", "crime-legend-toggle", "crime-daily-figure",
+        "crime-analysis-state-store", "crime-legend-toggle", "crime-daily-relayout-debounced-store",
     }
 
 
