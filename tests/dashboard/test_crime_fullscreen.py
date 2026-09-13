@@ -298,7 +298,7 @@ def test_crime_analysis_controls_and_state_ownership(monkeypatch):
         "crime-analysis-state-store", "crime-legend-toggle", "crime-point-text-filter",
     }
     assert {item["id"] for item in app.callback_map["crime-daily-figure.figure"]["inputs"]} == {
-        "crime-analysis-state-store", "crime-legend-toggle",
+        "crime-analysis-state-store", "crime-legend-toggle", "crime-daily-figure",
     }
 
 
@@ -424,13 +424,13 @@ def test_invalid_picker_edits_preserve_state_and_chart_clamps_to_data(monkeypatc
     state = app.callback_map["crime-analysis-state-store.data"]["callback"].__wrapped__
     for start, end in [(None, "2026-09-02"), ("", "2026-09-02"),
                        ("invalid", "2026-09-02"), ("2026-09-02", "2026-09-01"),
-                       ("2026-08-31", "2026-09-02"), ("2026-09-01", "2026-09-03")]:
+                       ("2025-09-01", "2026-09-02"), ("2026-09-01", "2026-09-03")]:
         with pytest.raises(PreventUpdate):
             state(start, end, None, [], [])
     assert _chart_date_update(
         _date_inputs_callback(app), {"xaxis.range": ["2020-01-01", "2030-01-01"]},
         "Sep 02, 2026", "Sep 02, 2026",
-    ) == ("Sep 01, 2026", "Sep 02, 2026")
+    ) == ("Sep 02, 2025", "Sep 02, 2026")
 
 
 def test_manual_dates_drive_daily_viewport_and_period_label(monkeypatch):
@@ -535,3 +535,79 @@ def test_independent_date_edits_normalize_and_invalid_edits_revert(monkeypatch):
     assert callback(None, None, None, 1, None, "Feb 11, 2026", "August 31, 2026", previous) == (
         app_module.no_update, "Aug 31, 2026",
     )
+
+
+@pytest.mark.parametrize("relayout", [
+    {"xaxis.autorange": True},
+    {"xaxis.range": ["2020-01-01", "2030-01-01"]},
+    {"xaxis.range[0]": "2020-01-01", "xaxis.range[1]": "2030-01-01"},
+    {"xaxis.range[0]": "2025-09-02", "xaxis.range[1]": "2026-09-02"},
+])
+def test_both_dashboard_callbacks_bound_year_reset_and_map(monkeypatch, relayout):
+    capture = {}
+    app = _build_stub_app(monkeypatch, crime_start="2024-09-01", crime_map_capture=capture)
+    dates = _chart_date_update(_date_inputs_callback(app), relayout, "Sep 02, 2026", "Sep 02, 2026")
+    state = app.callback_map["crime-analysis-state-store.data"]["callback"].__wrapped__(*dates, None, [], [])
+    assert (state["start_date"], state["end_date"]) == ("2025-09-02", "2026-09-02")
+    map_key = next(key for key in app.callback_map if "crime-map-graph-container" in key)
+    app.callback_map[map_key]["callback"].__wrapped__(state, [], "")
+    assert (capture["point_start_date"], capture["point_end_date"]) == ("2025-09-02", "2026-09-02")
+    call_state = app.callback_map["daily-visible-range-store.data"]["callback"].__wrapped__(relayout, None)
+    assert call_state == {"start": state["start_date"], "end": state["end_date"]}
+    def capture_calls(**kwargs):
+        capture.update(kwargs)
+        return go.Figure()
+    monkeypatch.setattr(app_module, "make_calls_map_figure", capture_calls)
+    call_map_key = next(key for key in app.callback_map if "map-point-window-label" in key and "crime" not in key)
+    app.callback_map[call_map_key]["callback"].__wrapped__("property/nonviolent", call_state, [])
+    assert (capture["point_start_date"], capture["point_end_date"]) == ("2025-09-02", "2026-09-02")
+    figure = app.callback_map["daily-figure.figure"]["callback"].__wrapped__("property/nonviolent", [], call_state)
+    assert list(figure.layout.xaxis.range) == ["2025-09-02", "2026-09-02"]
+
+
+@pytest.mark.parametrize("input_id,start,end", [
+    ("crime-analysis-start-date-input", "2024-09-01", "2026-09-02"),
+    ("crime-analysis-end-date-input", "2026-09-01", "2027-09-02"),
+])
+def test_outside_analysis_manual_input_reverts_even_when_history_exists(monkeypatch, input_id, start, end):
+    from dash.exceptions import PreventUpdate
+    app = _build_stub_app(monkeypatch, crime_start="2024-09-01")
+    monkeypatch.setattr(app_module, "ctx", SimpleNamespace(triggered_id=input_id))
+    result = _date_inputs_callback(app)(None, 1, 1, 1, 1, start, end, _analysis_state())
+    expected = ("Sep 01, 2026", app_module.no_update) if "start" in input_id else (app_module.no_update, "Sep 02, 2026")
+    assert result == expected
+    with pytest.raises(PreventUpdate):
+        app.callback_map["crime-analysis-state-store.data"]["callback"].__wrapped__(start, end, None, [], [])
+
+
+def test_stale_stores_are_bounded_for_both_maps_and_unrelated_calls_relayout_is_ignored(monkeypatch):
+    from dash.exceptions import PreventUpdate
+    capture = {}
+    app = _build_stub_app(monkeypatch, crime_start="2024-01-01", crime_map_capture=capture)
+    state = {**_analysis_state(), "start_date": "2024-01-01", "end_date": "2030-01-01"}
+    map_key = next(key for key in app.callback_map if "crime-map-graph-container" in key)
+    _, label = app.callback_map[map_key]["callback"].__wrapped__(state, [], "")
+    assert capture["point_start_date"] == "2025-09-02"
+    assert capture["point_end_date"] == "2026-09-02"
+    assert "2024" not in label and "2030" not in label
+    assert app_module.get_range_from_store({"start": "2024-01-01", "end": "2030-01-01"},
+                                          "2026-09-02", "2026-09-02") == ("2025-09-02", "2026-09-02")
+    with pytest.raises(PreventUpdate):
+        app.callback_map["daily-visible-range-store.data"]["callback"].__wrapped__(
+            {"autosize": True}, {"start": "2025-09-02", "end": "2026-09-02"})
+
+
+def test_outside_relayout_reapplies_viewport_even_when_canonical_state_is_unchanged(monkeypatch):
+    app = _build_stub_app(monkeypatch, crime_start="2024-01-01")
+    state = {**_analysis_state(), "start_date": "2025-09-02", "end_date": "2026-09-02"}
+    calls_state = {"start": state["start_date"], "end": state["end_date"]}
+    crime_daily = app.callback_map["crime-daily-figure.figure"]["callback"].__wrapped__
+    calls_daily = app.callback_map["daily-figure.figure"]["callback"].__wrapped__
+    cached_crime = crime_daily(state, [])
+    cached_calls = calls_daily("property/nonviolent", [], calls_state)
+    relayout = {"xaxis.range": ["2020-01-01", "2030-01-01"]}
+    for figure in [crime_daily(state, [], relayout), calls_daily("property/nonviolent", [], calls_state, relayout)]:
+        assert list(figure.layout.xaxis.range) == ["2025-09-02", "2026-09-02"]
+        assert figure.layout.uirevision is None
+    assert cached_crime.layout.uirevision is not None
+    assert cached_calls.layout.uirevision is not None

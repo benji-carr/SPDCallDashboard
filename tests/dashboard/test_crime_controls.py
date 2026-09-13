@@ -115,6 +115,6 @@ def test_neighborhood_options_do_not_exclude_citywide_records():
                                 "2026-09-01", "2026-09-02", ["crimes against property"])
     assert len(filter_crime_records(records, state)) == len(names)
     daily, _ = prepare_daily_event_data({"valid_time": records}, ["crimes against property"], state)
-    assert daily.reported_offenses.sum() == len(names) - 1  # Existing first-day exclusion.
+    assert daily.reported_offenses.sum() == len(names)  # Both analysis endpoints are inclusive.
     state["neighborhoods"] = ["downtown"]
     assert filter_crime_records(records, state).offense_id.tolist() == [7, 8]

@@ -3,6 +3,7 @@ import json
 import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
+from dashboard.analysis_windows import daily_chart_window
 from dashboard.crime_filters import filter_crime_records
 from dashboard.crime_classification import (
     CANONICAL_CRIME_TYPES,
@@ -58,38 +59,8 @@ def make_crime_combo_label(category_combo: list[str]) -> str:
     return " + ".join(category.title() for category in category_combo)
 
 
-def get_dataset_relative_daily_window(data: pd.DataFrame) -> dict:
-    if "date" not in data.columns:
-        raise ValueError("DataFrame is missing required column: date")
-
-    valid_dates = pd.to_datetime(
-        data["date"],
-        errors="coerce",
-    ).dropna()
-
-    if valid_dates.empty:
-        raise ValueError("No valid dates available for daily chart")
-
-    latest_available_day = valid_dates.max().normalize()
-    earliest_available_day = valid_dates.min().normalize()
-
-    earliest_analysis_day = earliest_available_day + pd.Timedelta(days=1)
-    plot_start_day = earliest_analysis_day
-
-    plot_end_day = latest_available_day
-    initial_view_start = latest_available_day - pd.Timedelta(days=1)
-
-    if initial_view_start < plot_start_day:
-        initial_view_start = plot_start_day
-
-    return {
-        "earliest_available_day": earliest_available_day,
-        "latest_available_day": latest_available_day,
-        "earliest_analysis_day": earliest_analysis_day,
-        "plot_start_day": plot_start_day,
-        "plot_end_day": plot_end_day,
-        "initial_view_start": initial_view_start,
-    }
+# Compatibility alias; both dashboards use the same analysis-domain calculation.
+get_dataset_relative_daily_window = daily_chart_window
 
 
 def prepare_daily_event_data(
@@ -130,7 +101,7 @@ def prepare_daily_event_data(
     valid_time["date"] = valid_time[TIME_COLUMN].dt.normalize()
 
     window = get_dataset_relative_daily_window(valid_time)
-    # Keep history for the slider and rolling average, with shared dimensions.
+    # Retain the selectable year for navigation, with shared analytical dimensions.
     valid_time = filter_crime_records(valid_time, analysis_state, include_dates=False)
 
     plot_start_day = window["plot_start_day"]
@@ -292,7 +263,12 @@ def make_daily_figure(
                     dict(count=1, label="1Y", step="year", stepmode="backward"),
                 ],
             ),
+            minallowed=window["plot_start_day"],
+            maxallowed=window["plot_end_day"],
+            autorangeoptions=dict(minallowed=window["plot_start_day"], maxallowed=window["plot_end_day"]),
             rangeslider=dict(
+                range=[window["plot_start_day"], window["plot_end_day"]],
+                autorange=False,
                 visible=True,
                 thickness=0.08,
             ),
